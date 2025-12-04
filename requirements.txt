@@ -1,0 +1,3 @@
+# Root requirements.txt - points Railway to backend deps
+-r backend/requirements.txt
+
