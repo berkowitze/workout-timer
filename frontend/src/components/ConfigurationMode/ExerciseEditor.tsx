@@ -1,7 +1,13 @@
 import type { SyntheticListenerMap } from "@dnd-kit/core/dist/hooks/utilities";
 import type { ExerciseWithId } from "../../types/workout";
 import { PRESET_EXERCISES } from "../../types/workout";
-import { ExerciseTypeSelector, ExerciseFields, TYPE_CONFIG, type ExerciseFormData, type ExerciseType } from "./ExerciseTypeSelector";
+import {
+  ExerciseTypeSelector,
+  ExerciseFields,
+  TYPE_CONFIG,
+  type ExerciseFormData,
+  type ExerciseType,
+} from "./ExerciseTypeSelector";
 
 interface ExerciseEditorProps {
   exercise: ExerciseWithId;
@@ -57,7 +63,6 @@ export function ExerciseEditor({
   dragHandleProps,
   isExpanded = false,
   onToggleExpand,
-  isNested = false,
   depth = 0,
 }: ExerciseEditorProps) {
   // Convert exercise to form data
@@ -173,12 +178,19 @@ export function ExerciseEditor({
             {...dragHandleProps}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 8h16M4 16h16"
+              />
             </svg>
           </div>
           <span
             className={`px-1.5 py-0.5 text-xs font-medium rounded shrink-0 ${
-              exercise.type === "loop" ? loopBadgeColor : `${typeConfig.bgClass} ${typeConfig.textClass}`
+              exercise.type === "loop"
+                ? loopBadgeColor
+                : `${typeConfig.bgClass} ${typeConfig.textClass}`
             }`}
           >
             {exercise.type}
@@ -196,7 +208,12 @@ export function ExerciseEditor({
               title="Add exercise to loop"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                />
               </svg>
             </button>
           )}
@@ -208,7 +225,12 @@ export function ExerciseEditor({
             className="p-1 text-gray-500 hover:text-coral transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
           <div className="p-1 text-gray-500">
@@ -218,7 +240,12 @@ export function ExerciseEditor({
               stroke="currentColor"
               viewBox="0 0 24 24"
             >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 9l-7 7-7-7"
+              />
             </svg>
           </div>
         </div>
@@ -228,15 +255,12 @@ export function ExerciseEditor({
       {isExpanded && (
         <div className="px-3 py-3 border-t border-gray-600 space-y-3">
           {/* For loop/rest: Type + value inline */}
-          {(exercise.type === "loop" || exercise.type === "rest") ? (
+          {exercise.type === "loop" || exercise.type === "rest" ? (
             <>
               <div className="flex flex-wrap items-end gap-3">
                 <div className="flex-1 min-w-[200px]">
                   <label className="block text-xs text-gray-400 mb-2">Type</label>
-                  <ExerciseTypeSelector
-                    value={exercise.type}
-                    onChange={handleTypeChange}
-                  />
+                  <ExerciseTypeSelector value={exercise.type} onChange={handleTypeChange} />
                 </div>
                 <div className="w-28">
                   <label className="block text-xs text-gray-400 mb-1">
@@ -245,11 +269,13 @@ export function ExerciseEditor({
                   <input
                     type="number"
                     value={exercise.type === "loop" ? exercise.rounds : exercise.duration}
-                    onChange={(e) => handleFieldChange(
-                      exercise.type === "loop"
-                        ? { rounds: parseInt(e.target.value) || 1 }
-                        : { duration: parseInt(e.target.value) || 0 }
-                    )}
+                    onChange={(e) =>
+                      handleFieldChange(
+                        exercise.type === "loop"
+                          ? { rounds: parseInt(e.target.value) || 1 }
+                          : { duration: parseInt(e.target.value) || 0 }
+                      )
+                    }
                     min="1"
                     className="w-full px-2 py-1.5 bg-slate border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-ocean"
                   />
@@ -266,18 +292,11 @@ export function ExerciseEditor({
               {/* Type selector */}
               <div>
                 <label className="block text-xs text-gray-400 mb-2">Type</label>
-                <ExerciseTypeSelector
-                  value={exercise.type}
-                  onChange={handleTypeChange}
-                />
+                <ExerciseTypeSelector value={exercise.type} onChange={handleTypeChange} />
               </div>
 
               {/* Fields */}
-              <ExerciseFields
-                data={getFormData()}
-                onChange={handleFieldChange}
-                compact
-              />
+              <ExerciseFields data={getFormData()} onChange={handleFieldChange} compact />
             </>
           )}
 
