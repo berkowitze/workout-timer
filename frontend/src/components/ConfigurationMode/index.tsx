@@ -134,12 +134,10 @@ export function ConfigurationMode({ onStartWorkout, initialExercises }: Configur
       setExpandedIds(loopIds);
       setIsViewMode(true); // Switch to view mode after parsing
 
-      // Scroll to exercises panel on narrow screens
-      if (window.innerWidth < 1024 && exercisesPanelRef.current) {
-        setTimeout(() => {
-          exercisesPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-        }, 100);
-      }
+      // Scroll to exercises panel (smooth scroll, will be no-op if already in view)
+      setTimeout(() => {
+        exercisesPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 100);
     } catch (err) {
       setError("Failed to parse workout. Please try again.");
       console.error(err);
@@ -274,7 +272,7 @@ export function ConfigurationMode({ onStartWorkout, initialExercises }: Configur
             className="bg-slate-light rounded-xl p-5 border border-gray-700"
           >
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
+              <div className="flex flex-col sm:items-center gap-1 sm:gap-3">
                 <h2 className="text-lg font-semibold text-white">Exercises</h2>
                 {totalTime !== null && (
                   <span className="text-sm text-gray-400 bg-gray-700/50 px-2 py-0.5 rounded w-fit">

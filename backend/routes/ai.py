@@ -57,11 +57,15 @@ Each exercise must be one of these types:
 
 CRITICAL Guidelines:
 
+Generally, keep the order of exercises as close as possible to the original text.
+
 LOOPS - EXTRACTING ROUND NUMBERS:
 - "3 rounds of:" → rounds: 3
 - "6 rounds of:" → rounds: 6  
 - "repeat 4 times:" → rounds: 4
-- ALWAYS extract the actual number from the text. Never default to 1.
+
+LOOP BOUNDARIES - Use your best judgment (based on words, whitespace, newlines, etc.) to determine
+if a loop is nested or not, and when a loop ends and the next exercise begins.
 
 NESTED LOOPS: Loops can contain other loops. Pay careful attention to indentation and structure.
 Example input:
@@ -72,9 +76,16 @@ Example input:
   6 minutes rest"
 
 Should become: loop(rounds=3, [loop(rounds=6, [timed 60s, timed 60s]), rest(360)])
-- The outer loop has rounds=3
-- The inner loop has rounds=6
-- The 6-minute rest is INSIDE the 3-round loop, not after it.
+
+NUMERIC EXERCISES WITH DISTANCE/UNITS:
+- Always extract a number. "1000m" means count=1000, not count=0.
+- Optionally extract a unit. "1000m" means unit="meters", not unit=None.
+    unit=None is valid too.
+- "1000m row" → count: 1000, unit: "meters", name: "row"
+- "20 pushups" → count: 20, unit: None, name: "pushups"
+- "500m run" → count: 500, unit: "meters", name: "run"  
+- "2000m bike" → count: 2000, unit: "meters", name: "bike"
+- "50 cal row" → count: 50, unit: "calories", name: "row"
 
 CONTEXT FROM PARENTHETICALS: When text in parentheses describes the equipment or activity 
 (e.g., "(rowing ergometer)", "(on bike)", "(kettlebell)"), include that context in exercise names.
@@ -86,8 +97,6 @@ If the user says "1 round of X, Y, Z", just output [X, Y, Z] directly, not loop(
 OTHER GUIDELINES:
 - Parse time durations to seconds (1 minute = 60 seconds, 6 minutes = 360 seconds)
 - Extract intensity/form instructions like "max effort", "one arm out" into the instruction field
-- For exercises with distance units like "500m row", use the unit field (e.g., unit="meters")
-- Phrases like "Then," or "cash-out" indicate the end of a loop and start of new exercises
 - "on/off" patterns typically mean alternating work and rest/recovery efforts"""
 
 NAME_SYSTEM_PROMPT = """Generate a short, catchy workout name (2-4 words) based on the exercises provided.
@@ -123,6 +132,16 @@ def parse_workout() -> tuple[Response, int] | Response:
 
         if message.parsed is None:
             return jsonify({"error": "Failed to parse workout"}), 500
+
+        # Log raw LLM response before transforms
+        import sys
+        print("=== RAW LLM RESPONSE ===", flush=True)
+        print(f"Total exercises: {len(message.parsed.exercises)}", flush=True)
+        for i, ex in enumerate(message.parsed.exercises):
+            print(f"\n[{i}] {ex.type}:", flush=True)
+            print(ex.model_dump_json(indent=2), flush=True)
+        print("\n========================", flush=True)
+        sys.stdout.flush()
 
         # Convert to clean typed dicts (removes null fields, ensures proper structure)
         exercises = [_clean_exercise(ex) for ex in message.parsed.exercises]
