@@ -1,4 +1,5 @@
 [phases.setup]
+providers = ['...', 'python']
 nixPkgs = ["nodejs_20", "python312"]
 
 [phases.install]
