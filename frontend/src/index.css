@@ -1,0 +1,126 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Instrument Sans", system-ui, sans-serif;
+  --color-ocean: #0077b6;
+  --color-ocean-dark: #005f8a;
+  --color-ocean-light: #00a8e8;
+  --color-mint: #2ec4b6;
+  --color-coral: #ff6b6b;
+  --color-slate: #1e293b;
+  --color-slate-light: #334155;
+}
+
+@layer base {
+  body {
+    @apply bg-slate text-white min-h-screen;
+    font-family: var(--font-display);
+  }
+}
+
+@keyframes pulse-slow {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.03);
+    opacity: 0.9;
+}
+}
+
+@keyframes pulse-fast {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+}
+  50% {
+    transform: scale(1.05);
+    opacity: 0.85;
+  }
+}
+
+@keyframes rest-gradient {
+  0% {
+    filter: hue-rotate(0deg) brightness(1);
+}
+  50% {
+    filter: hue-rotate(20deg) brightness(1.1);
+}
+  100% {
+    filter: hue-rotate(0deg) brightness(1);
+  }
+}
+
+@keyframes rest-gradient-bg {
+  0% {
+    background: linear-gradient(135deg, #0077b6 0%, #005f8a 50%, #00a8e8 100%);
+  }
+  33% {
+    background: linear-gradient(135deg, #005f8a 0%, #00a8e8 50%, #0077b6 100%);
+  }
+  66% {
+    background: linear-gradient(135deg, #00a8e8 0%, #0077b6 50%, #005f8a 100%);
+  }
+  100% {
+    background: linear-gradient(135deg, #0077b6 0%, #005f8a 50%, #00a8e8 100%);
+  }
+}
+
+@keyframes exercise-pop {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.15);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 2s ease-in-out infinite;
+}
+
+.animate-pulse-fast {
+  animation: pulse-fast 1s ease-in-out infinite;
+}
+
+.animate-rest-gradient {
+  animation: rest-gradient 3s ease-in-out infinite;
+}
+
+.animate-rest-gradient-bg {
+  animation: rest-gradient-bg 4s ease-in-out infinite;
+}
+
+.animate-exercise-pop {
+  animation: exercise-pop 0.4s ease-out;
+}
+
+/* Custom scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 3px;
+  }
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+  }
+
+/* Firefox scrollbar */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #475569 transparent;
+}
