@@ -29,16 +29,22 @@ function addIdsToExercises(exercises: Exercise[]): ExerciseWithId[] {
   }) as ExerciseWithId[];
 }
 
+function omit<T, K extends keyof T>(obj: T, ...keys: K[]): Omit<T, K> {
+  return Object.fromEntries(
+    Object.entries(obj as Record<string, unknown>).filter(([key]) => !keys.includes(key as K))
+  ) as Omit<T, K>;
+}
+
 function removeIdsFromExercises(exercises: ExerciseWithId[]): Exercise[] {
   return exercises.map((exercise) => {
     if (exercise.type === "loop") {
-      const { id, ...rest } = exercise;
+      const rest = omit(exercise, "id");
       return {
         ...rest,
         exercises: removeIdsFromExercises(exercise.exercises),
       };
     }
-    const { id, ...rest } = exercise;
+    const rest = omit(exercise, "id");
     return rest;
   }) as Exercise[];
 }
@@ -127,7 +133,7 @@ export function ConfigurationMode({ onStartWorkout, initialExercises }: Configur
       findLoops(withIds);
       setExpandedIds(loopIds);
       setIsViewMode(true); // Switch to view mode after parsing
-      
+
       // Scroll to exercises panel on narrow screens
       if (window.innerWidth < 1024 && exercisesPanelRef.current) {
         setTimeout(() => {
@@ -249,7 +255,7 @@ export function ConfigurationMode({ onStartWorkout, initialExercises }: Configur
           <p className="text-gray-400">Create, customize, and crush your workouts</p>
         </header>
 
-        <div className="grid gap-6 lg:grid-cols-[280px_1fr_280px]">
+        <div className="grid gap-6 lg:grid-cols-[1fr_1.5fr_1fr]">
           {/* Left Column - Input */}
           <div className="space-y-4">
             <div className="bg-slate-light rounded-xl p-5 border border-gray-700">
@@ -263,7 +269,10 @@ export function ConfigurationMode({ onStartWorkout, initialExercises }: Configur
           </div>
 
           {/* Middle Column - Exercise List */}
-          <div ref={exercisesPanelRef} className="bg-slate-light rounded-xl p-5 border border-gray-700">
+          <div
+            ref={exercisesPanelRef}
+            className="bg-slate-light rounded-xl p-5 border border-gray-700"
+          >
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
               <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
                 <h2 className="text-lg font-semibold text-white">Exercises</h2>
@@ -274,31 +283,6 @@ export function ConfigurationMode({ onStartWorkout, initialExercises }: Configur
                 )}
               </div>
               <div className="flex items-center gap-2">
-                {/* View/Edit Toggle */}
-                {exercises.length > 0 && (
-                  <div className="flex rounded-lg border border-gray-600 overflow-hidden">
-                    <button
-                      onClick={() => setIsViewMode(true)}
-                      className={`px-2.5 py-1 text-xs font-medium transition-colors ${
-                        isViewMode
-                          ? "bg-gray-600 text-white"
-                          : "text-gray-400 hover:text-gray-300"
-                      }`}
-                    >
-                      View
-                    </button>
-                    <button
-                      onClick={() => setIsViewMode(false)}
-                      className={`px-2.5 py-1 text-xs font-medium transition-colors ${
-                        !isViewMode
-                          ? "bg-gray-600 text-white"
-                          : "text-gray-400 hover:text-gray-300"
-                      }`}
-                    >
-                      Edit
-                    </button>
-                  </div>
-                )}
                 {/* Add button - only in edit mode */}
                 {!isViewMode && (
                   <button
@@ -318,6 +302,27 @@ export function ConfigurationMode({ onStartWorkout, initialExercises }: Configur
                     </svg>
                     Add
                   </button>
+                )}
+                {/* View/Edit Toggle */}
+                {exercises.length > 0 && (
+                  <div className="flex rounded-lg border border-gray-600 overflow-hidden">
+                    <button
+                      onClick={() => setIsViewMode(true)}
+                      className={`px-2.5 py-1 text-xs font-medium transition-colors ${
+                        isViewMode ? "bg-gray-600 text-white" : "text-gray-400 hover:text-gray-300"
+                      }`}
+                    >
+                      View
+                    </button>
+                    <button
+                      onClick={() => setIsViewMode(false)}
+                      className={`px-2.5 py-1 text-xs font-medium transition-colors ${
+                        !isViewMode ? "bg-gray-600 text-white" : "text-gray-400 hover:text-gray-300"
+                      }`}
+                    >
+                      Edit
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -381,7 +386,12 @@ export function ConfigurationMode({ onStartWorkout, initialExercises }: Configur
                           />
                         </svg>
                       ) : (
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
                           <path
                             strokeLinecap="round"
                             strokeLinejoin="round"
@@ -429,7 +439,12 @@ export function ConfigurationMode({ onStartWorkout, initialExercises }: Configur
                     </>
                   ) : savedWorkoutId && !hasChanges ? (
                     <>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
                         <path
                           strokeLinecap="round"
                           strokeLinejoin="round"
@@ -441,7 +456,12 @@ export function ConfigurationMode({ onStartWorkout, initialExercises }: Configur
                     </>
                   ) : (
                     <>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
                         <path
                           strokeLinecap="round"
                           strokeLinejoin="round"
@@ -479,9 +499,7 @@ export function ConfigurationMode({ onStartWorkout, initialExercises }: Configur
               </div>
             ) : (
               <div className="bg-slate-light rounded-xl p-5 border border-gray-700">
-                <p className="text-gray-500 text-sm text-center">
-                  Add exercises to get started
-                </p>
+                <p className="text-gray-500 text-sm text-center">Add exercises to get started</p>
               </div>
             )}
           </div>
