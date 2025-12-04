@@ -15,7 +15,7 @@ export function WorkoutParser({ onParse, isLoading }: WorkoutParserProps) {
     }
   };
 
-  const placeholder = `Paste your workout description here, e.g.:
+  const placeholder = `Write or paste your workout description here, e.g.:
 
 3 rounds:
 30 situps

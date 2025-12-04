@@ -1,9 +1,10 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import { v4 as uuidv4 } from "uuid";
 import type { Exercise, ExerciseWithId, Workout } from "../../types/workout";
 import { parseWorkout, generateWorkoutName, saveWorkout } from "../../api/client";
 import { WorkoutParser } from "./WorkoutParser";
 import { ExerciseList } from "./ExerciseList";
+import { ExerciseListView } from "./ExerciseListView";
 import { WorkoutSelector } from "./WorkoutSelector";
 import { AddExerciseModal } from "./AddExerciseModal";
 
@@ -83,8 +84,12 @@ export function ConfigurationMode({ onStartWorkout, initialExercises }: Configur
   const [workoutName, setWorkoutName] = useState("");
   const [savedWorkoutId, setSavedWorkoutId] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [modalKey, setModalKey] = useState(0);
+  const [addToLoopId, setAddToLoopId] = useState<string | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isViewMode, setIsViewMode] = useState(false);
+  const exercisesPanelRef = useRef<HTMLDivElement>(null);
 
   const totalTime = useMemo(() => calculateTotalTime(exercises), [exercises]);
 
@@ -121,6 +126,14 @@ export function ConfigurationMode({ onStartWorkout, initialExercises }: Configur
       };
       findLoops(withIds);
       setExpandedIds(loopIds);
+      setIsViewMode(true); // Switch to view mode after parsing
+      
+      // Scroll to exercises panel on narrow screens
+      if (window.innerWidth < 1024 && exercisesPanelRef.current) {
+        setTimeout(() => {
+          exercisesPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 100);
+      }
     } catch (err) {
       setError("Failed to parse workout. Please try again.");
       console.error(err);
@@ -147,6 +160,7 @@ export function ConfigurationMode({ onStartWorkout, initialExercises }: Configur
     };
     findLoops(withIds);
     setExpandedIds(loopIds);
+    setIsViewMode(true); // Switch to view mode after loading
   };
 
   const handleExercisesChange = (newExercises: ExerciseWithId[]) => {
@@ -155,11 +169,36 @@ export function ConfigurationMode({ onStartWorkout, initialExercises }: Configur
   };
 
   const handleAddExercise = (exercise: ExerciseWithId, autoExpand?: boolean) => {
-    setExercises([...exercises, exercise]);
+    if (addToLoopId) {
+      // Add to specific loop
+      const addToLoop = (items: ExerciseWithId[]): ExerciseWithId[] => {
+        return items.map((ex) => {
+          if (ex.id === addToLoopId && ex.type === "loop") {
+            return { ...ex, exercises: [...ex.exercises, exercise] };
+          }
+          if (ex.type === "loop") {
+            return { ...ex, exercises: addToLoop(ex.exercises) };
+          }
+          return ex;
+        });
+      };
+      setExercises(addToLoop(exercises));
+      setAddToLoopId(null);
+    } else {
+      setExercises([...exercises, exercise]);
+    }
     setHasChanges(true);
     if (autoExpand) {
       setExpandedIds((prev) => new Set([...prev, exercise.id]));
     }
+  };
+
+  const handleAddToLoop = (loopId: string) => {
+    setAddToLoopId(loopId);
+    setModalKey((k) => k + 1);
+    setIsAddModalOpen(true);
+    // Also expand the loop so user sees the new exercise
+    setExpandedIds((prev) => new Set([...prev, loopId]));
   };
 
   const handleGenerateName = async () => {
@@ -224,38 +263,76 @@ export function ConfigurationMode({ onStartWorkout, initialExercises }: Configur
           </div>
 
           {/* Middle Column - Exercise List */}
-          <div className="bg-slate-light rounded-xl p-5 border border-gray-700">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-3">
+          <div ref={exercisesPanelRef} className="bg-slate-light rounded-xl p-5 border border-gray-700">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
                 <h2 className="text-lg font-semibold text-white">Exercises</h2>
                 {totalTime !== null && (
-                  <span className="text-sm text-gray-400 bg-gray-700/50 px-2 py-0.5 rounded">
+                  <span className="text-sm text-gray-400 bg-gray-700/50 px-2 py-0.5 rounded w-fit">
                     {formatDuration(totalTime)} total
                   </span>
                 )}
               </div>
-              <button
-                onClick={() => setIsAddModalOpen(true)}
-                className="flex items-center gap-1 text-sm text-ocean hover:text-ocean-light transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                  />
-                </svg>
-                Add
-              </button>
+              <div className="flex items-center gap-2">
+                {/* View/Edit Toggle */}
+                {exercises.length > 0 && (
+                  <div className="flex rounded-lg border border-gray-600 overflow-hidden">
+                    <button
+                      onClick={() => setIsViewMode(true)}
+                      className={`px-2.5 py-1 text-xs font-medium transition-colors ${
+                        isViewMode
+                          ? "bg-gray-600 text-white"
+                          : "text-gray-400 hover:text-gray-300"
+                      }`}
+                    >
+                      View
+                    </button>
+                    <button
+                      onClick={() => setIsViewMode(false)}
+                      className={`px-2.5 py-1 text-xs font-medium transition-colors ${
+                        !isViewMode
+                          ? "bg-gray-600 text-white"
+                          : "text-gray-400 hover:text-gray-300"
+                      }`}
+                    >
+                      Edit
+                    </button>
+                  </div>
+                )}
+                {/* Add button - only in edit mode */}
+                {!isViewMode && (
+                  <button
+                    onClick={() => {
+                      setModalKey((k) => k + 1);
+                      setIsAddModalOpen(true);
+                    }}
+                    className="flex items-center gap-1 text-sm text-ocean hover:text-ocean-light transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                      />
+                    </svg>
+                    Add
+                  </button>
+                )}
+              </div>
             </div>
             <div className="max-h-[60vh] overflow-y-auto pr-1 custom-scrollbar">
-              <ExerciseList
-                exercises={exercises}
-                onChange={handleExercisesChange}
-                expandedIds={expandedIds}
-                onToggleExpand={handleToggleExpand}
-              />
+              {isViewMode ? (
+                <ExerciseListView exercises={exercises} />
+              ) : (
+                <ExerciseList
+                  exercises={exercises}
+                  onChange={handleExercisesChange}
+                  expandedIds={expandedIds}
+                  onToggleExpand={handleToggleExpand}
+                  onAddToLoop={handleAddToLoop}
+                />
+              )}
             </div>
           </div>
 
@@ -412,8 +489,12 @@ export function ConfigurationMode({ onStartWorkout, initialExercises }: Configur
       </div>
 
       <AddExerciseModal
+        key={modalKey}
         isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
+        onClose={() => {
+          setIsAddModalOpen(false);
+          setAddToLoopId(null);
+        }}
         onAdd={handleAddExercise}
       />
     </div>

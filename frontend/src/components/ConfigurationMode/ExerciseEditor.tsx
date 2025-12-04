@@ -1,13 +1,13 @@
 import type { SyntheticListenerMap } from "@dnd-kit/core/dist/hooks/utilities";
 import type { ExerciseWithId } from "../../types/workout";
 import { PRESET_EXERCISES } from "../../types/workout";
-import { v4 as uuidv4 } from "uuid";
+import { ExerciseTypeSelector, ExerciseFields, TYPE_CONFIG, type ExerciseFormData, type ExerciseType } from "./ExerciseTypeSelector";
 
 interface ExerciseEditorProps {
   exercise: ExerciseWithId;
   onChange: (exercise: ExerciseWithId) => void;
   onRemove: () => void;
-  onAddInLoop?: (exercise: ExerciseWithId) => void;
+  onAddInLoop?: () => void;
   dragHandleProps?: SyntheticListenerMap;
   isExpanded?: boolean;
   onToggleExpand?: () => void;
@@ -17,24 +17,24 @@ interface ExerciseEditorProps {
 
 // Colors for loop borders based on depth
 const LOOP_BORDER_COLORS = [
-  "border-purple-500/50", // depth 0
-  "border-blue-500/50", // depth 1
-  "border-emerald-500/50", // depth 2
-  "border-amber-500/50", // depth 3+
+  "border-purple-500/50",
+  "border-blue-500/50",
+  "border-emerald-500/50",
+  "border-amber-500/50",
 ];
 
 const LOOP_BADGE_COLORS = [
-  "bg-purple-500/20 text-purple-400", // depth 0
-  "bg-blue-500/20 text-blue-400", // depth 1
-  "bg-emerald-500/20 text-emerald-400", // depth 2
-  "bg-amber-500/20 text-amber-400", // depth 3+
+  "bg-purple-500/20 text-purple-400",
+  "bg-blue-500/20 text-blue-400",
+  "bg-emerald-500/20 text-emerald-400",
+  "bg-amber-500/20 text-amber-400",
 ];
 
 const LOOP_BUTTON_COLORS = [
-  "text-purple-400 hover:text-purple-300", // depth 0
-  "text-blue-400 hover:text-blue-300", // depth 1
-  "text-emerald-400 hover:text-emerald-300", // depth 2
-  "text-amber-400 hover:text-amber-300", // depth 3+
+  "text-purple-400 hover:text-purple-300",
+  "text-blue-400 hover:text-blue-300",
+  "text-emerald-400 hover:text-emerald-300",
+  "text-amber-400 hover:text-amber-300",
 ];
 
 function getLoopBorderColor(depth: number): string {
@@ -60,7 +60,18 @@ export function ExerciseEditor({
   isNested = false,
   depth = 0,
 }: ExerciseEditorProps) {
-  const handleTypeChange = (newType: string) => {
+  // Convert exercise to form data
+  const getFormData = (): ExerciseFormData => ({
+    type: exercise.type,
+    name: "name" in exercise ? exercise.name : "",
+    duration: "duration" in exercise ? exercise.duration : 30,
+    count: "count" in exercise ? exercise.count : 20,
+    rounds: "rounds" in exercise ? exercise.rounds : 3,
+    unit: "unit" in exercise && exercise.unit ? exercise.unit : "",
+    instruction: "instruction" in exercise && exercise.instruction ? exercise.instruction : "",
+  });
+
+  const handleTypeChange = (newType: ExerciseType) => {
     if (newType === "timed") {
       onChange({
         id: exercise.id,
@@ -94,6 +105,35 @@ export function ExerciseEditor({
     }
   };
 
+  const handleFieldChange = (changes: Partial<ExerciseFormData>) => {
+    if (exercise.type === "timed") {
+      onChange({
+        ...exercise,
+        name: changes.name ?? exercise.name,
+        duration: changes.duration ?? exercise.duration,
+        instruction: changes.instruction || undefined,
+      });
+    } else if (exercise.type === "rest") {
+      onChange({
+        ...exercise,
+        duration: changes.duration ?? exercise.duration,
+      });
+    } else if (exercise.type === "numeric") {
+      onChange({
+        ...exercise,
+        name: changes.name ?? exercise.name,
+        count: changes.count ?? exercise.count,
+        unit: changes.unit || undefined,
+        instruction: changes.instruction || undefined,
+      });
+    } else if (exercise.type === "loop") {
+      onChange({
+        ...exercise,
+        rounds: changes.rounds ?? exercise.rounds,
+      });
+    }
+  };
+
   const getExerciseLabel = () => {
     switch (exercise.type) {
       case "timed":
@@ -112,73 +152,51 @@ export function ExerciseEditor({
   const loopBadgeColor = getLoopBadgeColor(depth);
   const loopButtonColor = getLoopButtonColor(depth);
 
+  const typeConfig = TYPE_CONFIG[exercise.type];
+
   return (
     <div
       className={`bg-slate-light border rounded-lg overflow-hidden ${
         isLoop ? loopBorderColor : "border-gray-600"
       }`}
     >
-      <div className="flex items-center justify-between px-3 py-2">
+      {/* Header - clickable to expand (except drag handle and buttons) */}
+      <div
+        className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-gray-700/30 transition-colors"
+        onClick={onToggleExpand}
+      >
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          {/* Drag handle */}
+          {/* Drag handle - stop propagation to prevent expand */}
           <div
             className="cursor-grab text-gray-500 hover:text-gray-300 p-1 -m-1 touch-none"
+            onClick={(e) => e.stopPropagation()}
             {...dragHandleProps}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M4 8h16M4 16h16"
-              />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
             </svg>
           </div>
           <span
             className={`px-1.5 py-0.5 text-xs font-medium rounded shrink-0 ${
-              exercise.type === "timed"
-                ? "bg-ocean/20 text-ocean-light"
-                : exercise.type === "rest"
-                  ? "bg-mint/20 text-mint"
-                  : exercise.type === "loop"
-                    ? loopBadgeColor
-                    : "bg-coral/20 text-coral"
+              exercise.type === "loop" ? loopBadgeColor : `${typeConfig.bgClass} ${typeConfig.textClass}`
             }`}
           >
             {exercise.type}
           </span>
-          <span className="text-white text-sm font-medium truncate">{getExerciseLabel()}</span>
+          <span className="text-white text-sm font-medium break-words">{getExerciseLabel()}</span>
         </div>
         <div className="flex items-center gap-1 shrink-0">
           {isLoop && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                const newExercise: ExerciseWithId = {
-                  id: uuidv4(),
-                  type: "numeric",
-                  name: "exercise",
-                  count: 10,
-                };
-                if (onAddInLoop) {
-                  onAddInLoop(newExercise);
-                } else {
-                  onChange({
-                    ...exercise,
-                    exercises: [...exercise.exercises, newExercise],
-                  });
-                }
+                onAddInLoop?.();
               }}
               className={`p-1 ${loopButtonColor} transition-colors`}
               title="Add exercise to loop"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
               </svg>
             </button>
           )}
@@ -190,195 +208,85 @@ export function ExerciseEditor({
             className="p-1 text-gray-500 hover:text-coral transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
-          <button
-            onClick={onToggleExpand}
-            className="p-1 text-gray-500 hover:text-white transition-colors"
-          >
+          <div className="p-1 text-gray-500">
             <svg
               className={`w-4 h-4 transition-transform ${isExpanded ? "rotate-180" : ""}`}
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M19 9l-7 7-7-7"
-              />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
-          </button>
+          </div>
         </div>
       </div>
 
+      {/* Expanded editor using shared components */}
       {isExpanded && (
         <div className="px-3 py-3 border-t border-gray-600 space-y-3">
-          {/* For loop and rest: type + value on same row */}
-          {(exercise.type === "loop" || exercise.type === "rest") && (
-            <div className="flex gap-2">
-              <div className="w-28 shrink-0">
-                <label className="block text-xs text-gray-400 mb-1">Type</label>
-                <select
-                  value={exercise.type}
-                  onChange={(e) => handleTypeChange(e.target.value)}
-                  className="w-full px-2 py-1.5 bg-slate border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-ocean"
-                >
-                  <option value="timed">Timed</option>
-                  <option value="rest">Rest</option>
-                  <option value="numeric">Reps</option>
-                  {!isNested && <option value="loop">Loop</option>}
-                </select>
-              </div>
-              <div className="flex-1">
-                <label className="block text-xs text-gray-400 mb-1">
-                  {exercise.type === "loop" ? "Rounds" : "Duration (sec)"}
-                </label>
-                <input
-                  type="number"
-                  value={exercise.type === "loop" ? exercise.rounds : exercise.duration}
-                  onChange={(e) =>
-                    onChange({
-                      ...exercise,
-                      ...(exercise.type === "loop"
-                        ? { rounds: parseInt(e.target.value) || 1 }
-                        : { duration: parseInt(e.target.value) || 0 }),
-                    } as ExerciseWithId)
-                  }
-                  min="1"
-                  className="w-full px-2 py-1.5 bg-slate border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-ocean"
-                />
-              </div>
-            </div>
-          )}
-
-          {/* For timed/numeric: regular layout */}
-          {(exercise.type === "timed" || exercise.type === "numeric") && (
+          {/* For loop/rest: Type + value inline */}
+          {(exercise.type === "loop" || exercise.type === "rest") ? (
             <>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Type</label>
-                <select
-                  value={exercise.type}
-                  onChange={(e) => handleTypeChange(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-ocean"
-                >
-                  <option value="timed">Timed</option>
-                  <option value="rest">Rest</option>
-                  <option value="numeric">Numeric (Reps)</option>
-                  {!isNested && <option value="loop">Loop (Rounds)</option>}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Exercise Name
-                </label>
-                <input
-                  type="text"
-                  value={exercise.name}
-                  onChange={(e) =>
-                    onChange({ ...exercise, name: e.target.value } as ExerciseWithId)
-                  }
-                  className="w-full px-3 py-2 bg-slate border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-ocean"
-                  list="preset-exercises"
-                />
-                <datalist id="preset-exercises">
-                  {PRESET_EXERCISES.filter((p) => p.type !== "rest").map((preset) => (
-                    <option key={preset.name} value={preset.name} />
-                  ))}
-                </datalist>
-              </div>
-
-              {exercise.type === "timed" && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Duration (seconds)
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="flex-1 min-w-[200px]">
+                  <label className="block text-xs text-gray-400 mb-2">Type</label>
+                  <ExerciseTypeSelector
+                    value={exercise.type}
+                    onChange={handleTypeChange}
+                  />
+                </div>
+                <div className="w-28">
+                  <label className="block text-xs text-gray-400 mb-1">
+                    {exercise.type === "loop" ? "Rounds" : "Duration (sec)"}
                   </label>
                   <input
                     type="number"
-                    value={exercise.duration}
-                    onChange={(e) =>
-                      onChange({
-                        ...exercise,
-                        duration: parseInt(e.target.value) || 0,
-                      } as ExerciseWithId)
-                    }
+                    value={exercise.type === "loop" ? exercise.rounds : exercise.duration}
+                    onChange={(e) => handleFieldChange(
+                      exercise.type === "loop"
+                        ? { rounds: parseInt(e.target.value) || 1 }
+                        : { duration: parseInt(e.target.value) || 0 }
+                    )}
                     min="1"
-                    className="w-full px-3 py-2 bg-slate border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-ocean"
+                    className="w-full px-2 py-1.5 bg-slate border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-ocean"
                   />
                 </div>
+              </div>
+              {exercise.type === "loop" && exercise.exercises.length === 0 && (
+                <p className="text-xs text-gray-500 italic">
+                  Drag exercises into the loop or click + to add
+                </p>
               )}
-
-              {exercise.type === "numeric" && (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Count</label>
-                    <input
-                      type="number"
-                      value={exercise.count}
-                      onChange={(e) =>
-                        onChange({
-                          ...exercise,
-                          count: parseInt(e.target.value) || 0,
-                        } as ExerciseWithId)
-                      }
-                      min="1"
-                      className="w-full px-3 py-2 bg-slate border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-ocean"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">
-                      Unit (optional)
-                    </label>
-                    <input
-                      type="text"
-                      value={exercise.unit || ""}
-                      onChange={(e) =>
-                        onChange({
-                          ...exercise,
-                          unit: e.target.value || undefined,
-                        } as ExerciseWithId)
-                      }
-                      placeholder="e.g., meters, calories"
-                      className="w-full px-3 py-2 bg-slate border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-ocean"
-                    />
-                  </div>
-                </>
-              )}
-
+            </>
+          ) : (
+            <>
+              {/* Type selector */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Instruction (optional)
-                </label>
-                <input
-                  type="text"
-                  value={exercise.instruction || ""}
-                  onChange={(e) =>
-                    onChange({
-                      ...exercise,
-                      instruction: e.target.value || undefined,
-                    } as ExerciseWithId)
-                  }
-                  placeholder="e.g., one arm out, alternating legs"
-                  className="w-full px-3 py-2 bg-slate border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-ocean"
+                <label className="block text-xs text-gray-400 mb-2">Type</label>
+                <ExerciseTypeSelector
+                  value={exercise.type}
+                  onChange={handleTypeChange}
                 />
               </div>
+
+              {/* Fields */}
+              <ExerciseFields
+                data={getFormData()}
+                onChange={handleFieldChange}
+                compact
+              />
             </>
           )}
 
-          {/* Loop empty message */}
-          {exercise.type === "loop" && exercise.exercises.length === 0 && (
-            <p className="text-xs text-gray-500 italic">
-              Drag exercises here or click the + button to add
-            </p>
-          )}
+          {/* Datalist for preset exercises */}
+          <datalist id="preset-exercises">
+            {PRESET_EXERCISES.filter((p) => p.type !== "rest").map((preset) => (
+              <option key={preset.name} value={preset.name} />
+            ))}
+          </datalist>
         </div>
       )}
     </div>

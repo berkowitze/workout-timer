@@ -24,6 +24,7 @@ interface ExerciseListProps {
   onChange: (exercises: ExerciseWithId[]) => void;
   expandedIds: Set<string>;
   onToggleExpand: (id: string) => void;
+  onAddToLoop?: (loopId: string) => void;
 }
 
 interface FlatItem {
@@ -132,6 +133,7 @@ function SortableExercise({
   onToggleExpand,
   isExpanded,
   isDropTarget,
+  onAddInLoop,
 }: {
   item: FlatItem;
   index: number;
@@ -141,6 +143,7 @@ function SortableExercise({
   onToggleExpand: () => void;
   isExpanded: boolean;
   isDropTarget?: boolean;
+  onAddInLoop?: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.exercise.id,
@@ -193,6 +196,7 @@ function SortableExercise({
           exercise={item.exercise}
           onChange={onChange}
           onRemove={onRemove}
+          onAddInLoop={onAddInLoop}
           dragHandleProps={listeners}
           isExpanded={isExpanded}
           onToggleExpand={onToggleExpand}
@@ -230,6 +234,7 @@ export function ExerciseList({
   onChange,
   expandedIds,
   onToggleExpand,
+  onAddToLoop,
 }: ExerciseListProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
@@ -396,6 +401,7 @@ export function ExerciseList({
               onToggleExpand={() => onToggleExpand(item.exercise.id)}
               isExpanded={expandedIds.has(item.exercise.id)}
               isDropTarget={overId === item.exercise.id && isOverExpandedLoop}
+              onAddInLoop={item.exercise.type === "loop" ? () => onAddToLoop?.(item.exercise.id) : undefined}
             />
           ))}
         </div>

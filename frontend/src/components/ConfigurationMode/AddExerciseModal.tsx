@@ -1,25 +1,30 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { ExerciseWithId } from "../../types/workout";
 import { PRESET_EXERCISES } from "../../types/workout";
 import { v4 as uuidv4 } from "uuid";
+import {
+  ExerciseTypeSelector,
+  ExerciseFields,
+  type ExerciseFormData,
+  type ExerciseType,
+} from "./ExerciseTypeSelector";
 
 interface AddExerciseModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAdd: (exercise: ExerciseWithId, autoExpand?: boolean) => void;
+  hideLoopOption?: boolean;
 }
 
-export function AddExerciseModal({ isOpen, onClose, onAdd }: AddExerciseModalProps) {
+export function AddExerciseModal({
+  isOpen,
+  onClose,
+  onAdd,
+  hideLoopOption,
+}: AddExerciseModalProps) {
   const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
-  const [customExercise, setCustomExercise] = useState<{
-    type: "timed" | "rest" | "numeric" | "loop";
-    name: string;
-    duration: number;
-    count: number;
-    rounds: number;
-    unit: string;
-    instruction: string;
-  }>({
+  const [selectedType, setSelectedType] = useState<ExerciseType>(null);
+  const [formData, setFormData] = useState<ExerciseFormData>({
     type: "timed",
     name: "",
     duration: 30,
@@ -29,29 +34,47 @@ export function AddExerciseModal({ isOpen, onClose, onAdd }: AddExerciseModalPro
     instruction: "",
   });
 
+  // Handle Escape key to close modal
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
-  const isLoop = customExercise.type === "loop";
+  const isLoop = selectedType === "loop";
+  const isRest = selectedType === "rest";
 
   const handlePresetSelect = (presetName: string) => {
     const preset = PRESET_EXERCISES.find((p) => p.name === presetName);
     if (preset) {
       setSelectedPreset(presetName);
       if (preset.type === "rest") {
-        setCustomExercise((prev) => ({
+        setSelectedType("rest");
+        setFormData((prev) => ({
           ...prev,
           type: "rest",
           duration: preset.duration,
         }));
       } else if (preset.type === "timed") {
-        setCustomExercise((prev) => ({
+        setSelectedType("timed");
+        setFormData((prev) => ({
           ...prev,
           type: "timed",
           name: preset.name,
           duration: preset.duration,
         }));
       } else {
-        setCustomExercise((prev) => ({
+        setSelectedType("numeric");
+        setFormData((prev) => ({
           ...prev,
           type: "numeric",
           name: preset.name,
@@ -62,46 +85,54 @@ export function AddExerciseModal({ isOpen, onClose, onAdd }: AddExerciseModalPro
     }
   };
 
+  const handleTypeSelect = (type: "timed" | "rest" | "numeric" | "loop") => {
+    setSelectedType(type);
+    setFormData((prev) => ({ ...prev, type }));
+    setSelectedPreset(null);
+  };
+
   const handleAdd = () => {
+    if (!selectedType) return;
+
     let exercise: ExerciseWithId;
 
-    if (customExercise.type === "timed") {
+    if (selectedType === "timed") {
       exercise = {
         id: uuidv4(),
         type: "timed",
-        name: customExercise.name || "exercise",
-        duration: customExercise.duration,
-        instruction: customExercise.instruction || undefined,
+        name: formData.name || "exercise",
+        duration: formData.duration,
+        instruction: formData.instruction || undefined,
       };
-    } else if (customExercise.type === "rest") {
+    } else if (selectedType === "rest") {
       exercise = {
         id: uuidv4(),
         type: "rest",
-        duration: customExercise.duration,
+        duration: formData.duration,
       };
-    } else if (customExercise.type === "loop") {
+    } else if (selectedType === "loop") {
       exercise = {
         id: uuidv4(),
         type: "loop",
-        rounds: customExercise.rounds,
+        rounds: formData.rounds,
         exercises: [],
       };
     } else {
       exercise = {
         id: uuidv4(),
         type: "numeric",
-        name: customExercise.name || "exercise",
-        count: customExercise.count,
-        unit: customExercise.unit || undefined,
-        instruction: customExercise.instruction || undefined,
+        name: formData.name || "exercise",
+        count: formData.count,
+        unit: formData.unit || undefined,
+        instruction: formData.instruction || undefined,
       };
     }
 
-    // Auto-expand loops so user can add exercises
-    onAdd(exercise, customExercise.type === "loop");
+    onAdd(exercise, selectedType === "loop");
     onClose();
     setSelectedPreset(null);
-    setCustomExercise({
+    setSelectedType(null);
+    setFormData({
       type: "timed",
       name: "",
       duration: 30,
@@ -112,9 +143,16 @@ export function AddExerciseModal({ isOpen, onClose, onAdd }: AddExerciseModalPro
     });
   };
 
+  const handleFormChange = (changes: Partial<ExerciseFormData>) => {
+    setFormData((prev) => ({ ...prev, ...changes }));
+  };
+
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-light border border-gray-600 rounded-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+    <div
+      className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div className="bg-slate-light border border-gray-600 rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-4 border-b border-gray-600">
           <h3 className="text-lg font-semibold text-white">Add Exercise</h3>
           <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors">
@@ -130,8 +168,8 @@ export function AddExerciseModal({ isOpen, onClose, onAdd }: AddExerciseModalPro
         </div>
 
         <div className="p-4 space-y-4">
-          {/* Only show quick add for non-loop types */}
-          {!isLoop && (
+          {/* Quick Add presets - show when no type selected or timed/numeric */}
+          {(selectedType === null || selectedType === "timed" || selectedType === "numeric") && (
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">Quick Add</label>
               <div className="grid grid-cols-2 gap-2">
@@ -152,142 +190,71 @@ export function AddExerciseModal({ isOpen, onClose, onAdd }: AddExerciseModalPro
             </div>
           )}
 
-          <div className={isLoop ? "" : "border-t border-gray-600 pt-4"}>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              {isLoop ? "Configure Loop" : "Or Customize"}
-            </label>
-
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs text-gray-400 mb-1">Type</label>
-                <select
-                  value={customExercise.type}
-                  onChange={(e) => {
-                    setCustomExercise((prev) => ({
-                      ...prev,
-                      type: e.target.value as "timed" | "rest" | "numeric" | "loop",
-                    }));
-                    setSelectedPreset(null);
-                  }}
+          {/* For loop/rest: Type + value inline */}
+          {isLoop || isRest ? (
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="flex-1 min-w-[280px]">
+                <label className="block text-sm font-medium text-gray-300 mb-2">Type</label>
+                <ExerciseTypeSelector
+                  value={selectedType}
+                  onChange={handleTypeSelect}
+                  hideLoop={hideLoopOption}
+                />
+              </div>
+              <div className="w-32">
+                <label className="block text-xs text-gray-400 mb-1">
+                  {isLoop ? "Rounds" : "Duration (sec)"}
+                </label>
+                <input
+                  type="number"
+                  value={isLoop ? formData.rounds : formData.duration}
+                  onChange={(e) =>
+                    handleFormChange(
+                      isLoop
+                        ? { rounds: parseInt(e.target.value) || 1 }
+                        : { duration: parseInt(e.target.value) || 0 }
+                    )
+                  }
+                  min="1"
                   className="w-full px-3 py-2 bg-slate border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-ocean"
-                >
-                  <option value="timed">Timed</option>
-                  <option value="rest">Rest</option>
-                  <option value="numeric">Numeric (Reps)</option>
-                  <option value="loop">Loop (Rounds)</option>
-                </select>
+                />
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Type selector */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Type</label>
+                <ExerciseTypeSelector
+                  value={selectedType}
+                  onChange={handleTypeSelect}
+                  hideLoop={hideLoopOption}
+                />
               </div>
 
-              {customExercise.type !== "rest" && customExercise.type !== "loop" && (
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">Name</label>
-                  <input
-                    type="text"
-                    value={customExercise.name}
-                    onChange={(e) =>
-                      setCustomExercise((prev) => ({ ...prev, name: e.target.value }))
-                    }
-                    placeholder="Exercise name"
-                    className="w-full px-3 py-2 bg-slate border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-ocean"
-                  />
+              {/* Customization fields - only show when type is selected */}
+              {selectedType && (
+                <div className="border-t border-gray-600 pt-4">
+                  <label className="block text-sm font-medium text-gray-300 mb-3">Customize</label>
+                  <ExerciseFields data={formData} onChange={handleFormChange} isModal />
                 </div>
               )}
+            </>
+          )}
 
-              {(customExercise.type === "timed" || customExercise.type === "rest") && (
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">Duration (seconds)</label>
-                  <input
-                    type="number"
-                    value={customExercise.duration}
-                    onChange={(e) =>
-                      setCustomExercise((prev) => ({
-                        ...prev,
-                        duration: parseInt(e.target.value) || 0,
-                      }))
-                    }
-                    min="1"
-                    className="w-full px-3 py-2 bg-slate border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-ocean"
-                  />
-                </div>
-              )}
-
-              {customExercise.type === "numeric" && (
-                <>
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">Count</label>
-                    <input
-                      type="number"
-                      value={customExercise.count}
-                      onChange={(e) =>
-                        setCustomExercise((prev) => ({
-                          ...prev,
-                          count: parseInt(e.target.value) || 0,
-                        }))
-                      }
-                      min="1"
-                      className="w-full px-3 py-2 bg-slate border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-ocean"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">Unit (optional)</label>
-                    <input
-                      type="text"
-                      value={customExercise.unit}
-                      onChange={(e) =>
-                        setCustomExercise((prev) => ({ ...prev, unit: e.target.value }))
-                      }
-                      placeholder="e.g., meters"
-                      className="w-full px-3 py-2 bg-slate border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-ocean"
-                    />
-                  </div>
-                </>
-              )}
-
-              {customExercise.type === "loop" && (
-                <>
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">Rounds</label>
-                    <input
-                      type="number"
-                      value={customExercise.rounds}
-                      onChange={(e) =>
-                        setCustomExercise((prev) => ({
-                          ...prev,
-                          rounds: parseInt(e.target.value) || 1,
-                        }))
-                      }
-                      min="1"
-                      className="w-full px-3 py-2 bg-slate border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-ocean"
-                    />
-                  </div>
-                  <p className="text-xs text-gray-500 italic">
-                    After adding, you can drag exercises into the loop or use the + Add button
-                  </p>
-                </>
-              )}
-
-              {customExercise.type !== "rest" && customExercise.type !== "loop" && (
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">Instruction (optional)</label>
-                  <input
-                    type="text"
-                    value={customExercise.instruction}
-                    onChange={(e) =>
-                      setCustomExercise((prev) => ({ ...prev, instruction: e.target.value }))
-                    }
-                    placeholder="e.g., one arm out"
-                    className="w-full px-3 py-2 bg-slate border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-ocean"
-                  />
-                </div>
-              )}
-            </div>
-          </div>
+          {/* Loop instructions */}
+          {isLoop && (
+            <p className="text-xs text-gray-500 italic">
+              You can add exercises to this loop after creating it
+            </p>
+          )}
         </div>
 
         <div className="p-4 border-t border-gray-600">
           <button
             onClick={handleAdd}
-            className="w-full py-2 bg-ocean hover:bg-ocean-dark text-white font-medium rounded-lg transition-colors"
+            disabled={!selectedType}
+            className="w-full py-2.5 bg-ocean hover:bg-ocean-dark disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors"
           >
             {isLoop ? "Add Loop" : "Add Exercise"}
           </button>
