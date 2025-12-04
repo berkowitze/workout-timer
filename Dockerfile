@@ -24,5 +24,5 @@ COPY --from=frontend-build /app/frontend/dist ./frontend/dist
 WORKDIR /app/backend
 
 # Initialize DB and start server
-CMD python -c "from app import init_db; init_db()" && gunicorn app:app --bind 0.0.0.0:$PORT
+CMD python -c "from app import init_db; init_db()" && gunicorn app:app --workers 2 --threads 4 --bind 0.0.0.0:$PORT
 
