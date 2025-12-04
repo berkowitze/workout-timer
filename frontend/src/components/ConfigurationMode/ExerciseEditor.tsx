@@ -99,13 +99,11 @@ export function ExerciseEditor({
       case "timed":
         return `${exercise.duration}s ${exercise.name}${exercise.instruction ? ` (${exercise.instruction})` : ""}`;
       case "rest":
-        return `Rest ${exercise.duration}s`;
+        return `${exercise.duration}s`;
       case "numeric":
         return `${exercise.count} ${exercise.name}${exercise.unit ? ` (${exercise.unit})` : ""}${exercise.instruction ? ` - ${exercise.instruction}` : ""}`;
       case "loop":
-        return `${exercise.rounds} rounds (${exercise.exercises.length} exercises)`;
-      default:
-        return "Exercise";
+        return `${exercise.rounds} rounds`;
     }
   };
 
@@ -223,138 +221,163 @@ export function ExerciseEditor({
 
       {isExpanded && (
         <div className="px-3 py-3 border-t border-gray-600 space-y-3">
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">Type</label>
-            <select
-              value={exercise.type}
-              onChange={(e) => handleTypeChange(e.target.value)}
-              className="w-full px-3 py-2 bg-slate border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-ocean"
-            >
-              <option value="timed">Timed</option>
-              <option value="rest">Rest</option>
-              <option value="numeric">Numeric (Reps)</option>
-              {!isNested && <option value="loop">Loop (Rounds)</option>}
-            </select>
-          </div>
-
-          {(exercise.type === "timed" || exercise.type === "numeric") && (
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Exercise Name</label>
-              <input
-                type="text"
-                value={exercise.name}
-                onChange={(e) =>
-                  onChange({ ...exercise, name: e.target.value } as ExerciseWithId)
-                }
-                className="w-full px-3 py-2 bg-slate border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-ocean"
-                list="preset-exercises"
-              />
-              <datalist id="preset-exercises">
-                {PRESET_EXERCISES.filter((p) => p.type !== "rest").map((preset) => (
-                  <option key={preset.name} value={preset.name} />
-                ))}
-              </datalist>
-            </div>
-          )}
-
-          {(exercise.type === "timed" || exercise.type === "rest") && (
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Duration (seconds)
-              </label>
-              <input
-                type="number"
-                value={exercise.duration}
-                onChange={(e) =>
-                  onChange({
-                    ...exercise,
-                    duration: parseInt(e.target.value) || 0,
-                  } as ExerciseWithId)
-                }
-                min="1"
-                className="w-full px-3 py-2 bg-slate border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-ocean"
-              />
-            </div>
-          )}
-
-          {exercise.type === "numeric" && (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Count</label>
+          {/* For loop and rest: type + value on same row */}
+          {(exercise.type === "loop" || exercise.type === "rest") && (
+            <div className="flex gap-2">
+              <div className="w-28 shrink-0">
+                <label className="block text-xs text-gray-400 mb-1">Type</label>
+                <select
+                  value={exercise.type}
+                  onChange={(e) => handleTypeChange(e.target.value)}
+                  className="w-full px-2 py-1.5 bg-slate border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-ocean"
+                >
+                  <option value="timed">Timed</option>
+                  <option value="rest">Rest</option>
+                  <option value="numeric">Reps</option>
+                  {!isNested && <option value="loop">Loop</option>}
+                </select>
+              </div>
+              <div className="flex-1">
+                <label className="block text-xs text-gray-400 mb-1">
+                  {exercise.type === "loop" ? "Rounds" : "Duration (sec)"}
+                </label>
                 <input
                   type="number"
-                  value={exercise.count}
+                  value={exercise.type === "loop" ? exercise.rounds : exercise.duration}
                   onChange={(e) =>
                     onChange({
                       ...exercise,
-                      count: parseInt(e.target.value) || 0,
+                      ...(exercise.type === "loop"
+                        ? { rounds: parseInt(e.target.value) || 1 }
+                        : { duration: parseInt(e.target.value) || 0 }),
                     } as ExerciseWithId)
                   }
                   min="1"
-                  className="w-full px-3 py-2 bg-slate border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-ocean"
+                  className="w-full px-2 py-1.5 bg-slate border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-ocean"
                 />
               </div>
+            </div>
+          )}
+
+          {/* For timed/numeric: regular layout */}
+          {(exercise.type === "timed" || exercise.type === "numeric") && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Type</label>
+                <select
+                  value={exercise.type}
+                  onChange={(e) => handleTypeChange(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-ocean"
+                >
+                  <option value="timed">Timed</option>
+                  <option value="rest">Rest</option>
+                  <option value="numeric">Numeric (Reps)</option>
+                  {!isNested && <option value="loop">Loop (Rounds)</option>}
+                </select>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Unit (optional)
+                  Exercise Name
                 </label>
                 <input
                   type="text"
-                  value={exercise.unit || ""}
+                  value={exercise.name}
+                  onChange={(e) =>
+                    onChange({ ...exercise, name: e.target.value } as ExerciseWithId)
+                  }
+                  className="w-full px-3 py-2 bg-slate border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-ocean"
+                  list="preset-exercises"
+                />
+                <datalist id="preset-exercises">
+                  {PRESET_EXERCISES.filter((p) => p.type !== "rest").map((preset) => (
+                    <option key={preset.name} value={preset.name} />
+                  ))}
+                </datalist>
+              </div>
+
+              {exercise.type === "timed" && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    Duration (seconds)
+                  </label>
+                  <input
+                    type="number"
+                    value={exercise.duration}
+                    onChange={(e) =>
+                      onChange({
+                        ...exercise,
+                        duration: parseInt(e.target.value) || 0,
+                      } as ExerciseWithId)
+                    }
+                    min="1"
+                    className="w-full px-3 py-2 bg-slate border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-ocean"
+                  />
+                </div>
+              )}
+
+              {exercise.type === "numeric" && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Count</label>
+                    <input
+                      type="number"
+                      value={exercise.count}
+                      onChange={(e) =>
+                        onChange({
+                          ...exercise,
+                          count: parseInt(e.target.value) || 0,
+                        } as ExerciseWithId)
+                      }
+                      min="1"
+                      className="w-full px-3 py-2 bg-slate border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-ocean"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      Unit (optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={exercise.unit || ""}
+                      onChange={(e) =>
+                        onChange({
+                          ...exercise,
+                          unit: e.target.value || undefined,
+                        } as ExerciseWithId)
+                      }
+                      placeholder="e.g., meters, calories"
+                      className="w-full px-3 py-2 bg-slate border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-ocean"
+                    />
+                  </div>
+                </>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">
+                  Instruction (optional)
+                </label>
+                <input
+                  type="text"
+                  value={exercise.instruction || ""}
                   onChange={(e) =>
                     onChange({
                       ...exercise,
-                      unit: e.target.value || undefined,
+                      instruction: e.target.value || undefined,
                     } as ExerciseWithId)
                   }
-                  placeholder="e.g., meters, calories"
+                  placeholder="e.g., one arm out, alternating legs"
                   className="w-full px-3 py-2 bg-slate border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-ocean"
                 />
               </div>
             </>
           )}
 
-          {(exercise.type === "timed" || exercise.type === "numeric") && (
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Instruction (optional)
-              </label>
-              <input
-                type="text"
-                value={exercise.instruction || ""}
-                onChange={(e) =>
-                  onChange({
-                    ...exercise,
-                    instruction: e.target.value || undefined,
-                  } as ExerciseWithId)
-                }
-                placeholder="e.g., one arm out, alternating legs"
-                className="w-full px-3 py-2 bg-slate border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-ocean"
-              />
-            </div>
-          )}
-
-          {exercise.type === "loop" && (
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Rounds</label>
-              <input
-                type="number"
-                value={exercise.rounds}
-                onChange={(e) =>
-                  onChange({
-                    ...exercise,
-                    rounds: parseInt(e.target.value) || 1,
-                  } as ExerciseWithId)
-                }
-                min="1"
-                className="w-full px-3 py-2 bg-slate border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-ocean"
-              />
-              {exercise.exercises.length === 0 && (
-                <p className="text-xs text-gray-500 mt-2 italic">
-                  Drag exercises here or click the + button to add
-                </p>
-              )}
-            </div>
+          {/* Loop empty message */}
+          {exercise.type === "loop" && exercise.exercises.length === 0 && (
+            <p className="text-xs text-gray-500 italic">
+              Drag exercises here or click the + button to add
+            </p>
           )}
         </div>
       )}

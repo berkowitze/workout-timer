@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class TimedExercise(BaseModel):
@@ -28,18 +28,35 @@ class NumericExercise(BaseModel):
 class ParsedExercise(BaseModel):
     """A single exercise that can be any type including nested loops."""
 
-    type: Literal["timed", "rest", "numeric", "loop"]
+    type: Literal["timed", "rest", "numeric", "loop"] = Field(
+        description="The type of exercise: timed, rest, numeric, or loop"
+    )
     # For timed/rest
-    duration: int | None = None
+    duration: int | None = Field(
+        default=None, description="Duration in seconds for timed exercises or rest periods"
+    )
     # For timed/numeric
-    name: str | None = None
-    instruction: str | None = None
+    name: str | None = Field(
+        default=None, description="Name of the exercise (e.g., 'plank', 'pushups', 'row')"
+    )
+    instruction: str | None = Field(
+        default=None, description="Additional instructions like 'max effort', 'one arm out'"
+    )
     # For numeric
-    count: int | None = None
-    unit: str | None = None
+    count: int | None = Field(
+        default=None, description="Number of repetitions for numeric exercises"
+    )
+    unit: str | None = Field(
+        default=None, description="Unit for numeric exercises (e.g., 'meters', 'calories')"
+    )
     # For loop
-    rounds: int | None = None
-    exercises: list["ParsedExercise"] | None = None
+    rounds: int | None = Field(
+        default=None,
+        description="Number of rounds/repetitions for a loop. Extract this from phrases like '3 rounds of', '6 rounds:', 'repeat 4 times'",
+    )
+    exercises: list["ParsedExercise"] | None = Field(
+        default=None, description="List of exercises contained within a loop"
+    )
 
 
 # Rebuild to resolve forward references

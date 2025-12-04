@@ -32,29 +32,17 @@ interface FlatItem {
   depth: number;
 }
 
-// Colors for different nesting levels
-const DEPTH_COLORS = [
-  "", // depth 0 - no border
-  "border-purple-500/50", // depth 1
-  "border-blue-500/50", // depth 2
-  "border-emerald-500/50", // depth 3
-  "border-amber-500/50", // depth 4+
+// Colors for different nesting levels (CSS color values for inline styles)
+const DEPTH_LINE_COLORS = [
+  "", // depth 0 - no line
+  "rgb(168 85 247 / 0.6)", // depth 1 - purple
+  "rgb(59 130 246 / 0.6)", // depth 2 - blue
+  "rgb(16 185 129 / 0.6)", // depth 3 - emerald
+  "rgb(245 158 11 / 0.6)", // depth 4+ - amber
 ];
 
-const DEPTH_BG_COLORS = [
-  "", // depth 0
-  "bg-purple-500/5", // depth 1
-  "bg-blue-500/5", // depth 2
-  "bg-emerald-500/5", // depth 3
-  "bg-amber-500/5", // depth 4+
-];
-
-function getDepthColor(depth: number): string {
-  return DEPTH_COLORS[Math.min(depth, DEPTH_COLORS.length - 1)];
-}
-
-function getDepthBgColor(depth: number): string {
-  return DEPTH_BG_COLORS[Math.min(depth, DEPTH_BG_COLORS.length - 1)];
+function getLineColor(depth: number): string {
+  return DEPTH_LINE_COLORS[Math.min(depth, DEPTH_LINE_COLORS.length - 1)];
 }
 
 // Flatten exercises for rendering, keeping track of parent loops
@@ -137,6 +125,8 @@ function insertExercise(
 
 function SortableExercise({
   item,
+  index,
+  flatItems,
   onChange,
   onRemove,
   onToggleExpand,
@@ -144,6 +134,8 @@ function SortableExercise({
   isDropTarget,
 }: {
   item: FlatItem;
+  index: number;
+  flatItems: FlatItem[];
   onChange: (exercise: ExerciseWithId) => void;
   onRemove: () => void;
   onToggleExpand: () => void;
@@ -158,31 +150,56 @@ function SortableExercise({
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
-    marginLeft: `${item.depth * 20}px`,
   };
 
-  const borderColor = getDepthColor(item.depth);
-  const bgColor = getDepthBgColor(item.depth);
+  // Check previous and next items to determine line extensions
+  const prevItem = index > 0 ? flatItems[index - 1] : null;
+  const nextItem = index < flatItems.length - 1 ? flatItems[index + 1] : null;
+
+  // Generate vertical lines for each depth level
+  const depthLines = [];
+  for (let d = 1; d <= item.depth; d++) {
+    // Extend upward if previous item is at same or greater depth at this level
+    const extendUp = prevItem && prevItem.depth >= d;
+    // Extend downward if next item is at same or greater depth at this level
+    const extendDown = nextItem && nextItem.depth >= d;
+
+    depthLines.push(
+      <div
+        key={d}
+        className="absolute w-0.5"
+        style={{
+          left: `${(d - 1) * 20 + 8}px`,
+          top: extendUp ? "-2px" : "0",
+          bottom: extendDown ? "-2px" : "0",
+          backgroundColor: getLineColor(d),
+        }}
+      />
+    );
+  }
 
   return (
     <div
       ref={setNodeRef}
       style={style}
       {...attributes}
-      className={`${isDropTarget ? "ring-2 ring-purple-500 rounded-lg" : ""} ${
-        item.depth > 0 ? `pl-3 border-l-2 ${borderColor} ${bgColor} rounded-r` : ""
-      }`}
+      className={`relative ${isDropTarget ? "ring-2 ring-purple-500 rounded-lg" : ""}`}
     >
-      <ExerciseEditor
-        exercise={item.exercise}
-        onChange={onChange}
-        onRemove={onRemove}
-        dragHandleProps={listeners}
-        isExpanded={isExpanded}
-        onToggleExpand={onToggleExpand}
-        isNested={item.depth > 0}
-        depth={item.depth}
-      />
+      {/* Render vertical lines for each depth level */}
+      {depthLines}
+      {/* Content with left padding based on depth */}
+      <div style={{ marginLeft: `${item.depth * 20}px` }}>
+        <ExerciseEditor
+          exercise={item.exercise}
+          onChange={onChange}
+          onRemove={onRemove}
+          dragHandleProps={listeners}
+          isExpanded={isExpanded}
+          onToggleExpand={onToggleExpand}
+          isNested={item.depth > 0}
+          depth={item.depth}
+        />
+      </div>
     </div>
   );
 }
@@ -193,7 +210,7 @@ function DragPreview({ exercise }: { exercise: ExerciseWithId }) {
       case "timed":
         return `${exercise.duration}s ${exercise.name}`;
       case "rest":
-        return `Rest ${exercise.duration}s`;
+        return `rest ${exercise.duration}s`;
       case "numeric":
         return `${exercise.count} ${exercise.name}`;
       case "loop":
@@ -367,11 +384,13 @@ export function ExerciseList({
       onDragEnd={handleDragEnd}
     >
       <SortableContext items={allIds} strategy={verticalListSortingStrategy}>
-        <div className="space-y-1.5">
-          {flatItems.map((item) => (
+        <div className="space-y-1">
+          {flatItems.map((item, index) => (
             <SortableExercise
               key={item.exercise.id}
               item={item}
+              index={index}
+              flatItems={flatItems}
               onChange={(updated) => handleExerciseChange(item.exercise.id, updated)}
               onRemove={() => handleRemove(item.exercise.id)}
               onToggleExpand={() => onToggleExpand(item.exercise.id)}

@@ -57,10 +57,24 @@ Each exercise must be one of these types:
 
 CRITICAL Guidelines:
 
+LOOPS - EXTRACTING ROUND NUMBERS:
+- "3 rounds of:" → rounds: 3
+- "6 rounds of:" → rounds: 6  
+- "repeat 4 times:" → rounds: 4
+- ALWAYS extract the actual number from the text. Never default to 1.
+
 NESTED LOOPS: Loops can contain other loops. Pay careful attention to indentation and structure.
-Example: "3 rounds of: 6 rounds of: 1 min on, 1 min off; 6 min rest"
-Should become: loop(3, [loop(6, [timed 60s, timed 60s]), rest(360)])
-The 6-minute rest is INSIDE the 3-round loop, not after it.
+Example input:
+"3 rounds of:
+  6 rounds of:
+    1 minute max effort
+    1 minute off
+  6 minutes rest"
+
+Should become: loop(rounds=3, [loop(rounds=6, [timed 60s, timed 60s]), rest(360)])
+- The outer loop has rounds=3
+- The inner loop has rounds=6
+- The 6-minute rest is INSIDE the 3-round loop, not after it.
 
 CONTEXT FROM PARENTHETICALS: When text in parentheses describes the equipment or activity 
 (e.g., "(rowing ergometer)", "(on bike)", "(kettlebell)"), include that context in exercise names.

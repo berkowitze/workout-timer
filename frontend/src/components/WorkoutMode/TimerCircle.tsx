@@ -18,19 +18,25 @@ export function TimerCircle({
   subtext,
   totalSeconds = 0,
   remainingSeconds = 0,
-  remainingMs,
+  remainingMs = 0,
   isCountdown = false,
   isRest = false,
   isPaused = false,
   state,
   onClick,
 }: TimerCircleProps) {
-  const progress = useMemo(() => {
-    if (totalSeconds === 0) return 0;
-    return ((totalSeconds - remainingSeconds) / totalSeconds) * 100;
-  }, [totalSeconds, remainingSeconds]);
+  // Use ms for smooth continuous progress
+  const totalMs = totalSeconds * 1000;
+  const currentRemainingMs = remainingSeconds * 1000 + remainingMs;
 
-  const isNearEnd = remainingSeconds <= 10 && remainingSeconds > 0;
+  const progress = useMemo(() => {
+    if (totalMs === 0) return 0;
+    const elapsed = totalMs - currentRemainingMs;
+    return Math.max(0, Math.min(100, (elapsed / totalMs) * 100));
+  }, [totalMs, currentRemainingMs]);
+
+  // Show near end effects when under 10 seconds (including the final second when remainingSeconds is 0)
+  const isNearEnd = remainingSeconds < 10 || (remainingSeconds === 10 && remainingMs < 1000);
 
   // Calculate color based on remaining time
   const circleColor = useMemo(() => {
@@ -41,29 +47,38 @@ export function TimerCircle({
     if (!isNearEnd) return "hsl(210, 100%, 45%)"; // Blue
 
     // Interpolate from blue (210) to green (120) over the last 10 seconds
-    const hue = 210 - ((10 - remainingSeconds) / 10) * 90;
-    return `hsl(${hue}, 70%, 50%)`;
-  }, [state, isCountdown, isNearEnd, remainingSeconds, isPaused]);
+    const remainingInLast10 = currentRemainingMs / 1000;
+    const hue = 210 - ((10 - remainingInLast10) / 10) * 90;
+    return `hsl(${Math.max(120, Math.min(210, hue))}, 70%, 50%)`;
+  }, [state, isCountdown, isNearEnd, currentRemainingMs, isPaused]);
 
+  // Only pulse during active timed exercises (not rest, not idle)
   const animationClass = useMemo(() => {
     if (state === "completed") return "";
     if (state === "start") return "hover:scale-105 transition-transform cursor-pointer";
     if (isPaused) return "cursor-pointer";
-    if (isRest) return "animate-rest-gradient cursor-pointer";
-    if (!isCountdown) return "animate-pulse-slow cursor-pointer";
-    return isNearEnd ? "animate-pulse-fast cursor-pointer" : "animate-pulse-slow cursor-pointer";
-  }, [state, isCountdown, isNearEnd, isRest, isPaused]);
+    if (isRest) return "cursor-pointer"; // No pulse during rest
+    if (!isCountdown) return "cursor-pointer"; // No pulse for numeric
+    return "animate-pulse-slow cursor-pointer"; // Always 2 second pulse for timed
+  }, [state, isCountdown, isRest, isPaused]);
 
   const circumference = 2 * Math.PI * 140; // radius = 140
 
-  // Display value with ms when under 10s
+  // Display value - show tenths for timed exercises (not rest) under 10 seconds
+  // This includes countdown phase and active timed exercises
+  const showDecimals = isNearEnd && isCountdown && !isRest && currentRemainingMs > 0;
+
   const displayValue = useMemo(() => {
-    if (isNearEnd && remainingMs !== undefined && typeof value === "number") {
-      const ms = Math.floor(remainingMs / 100);
-      return `${value}.${ms}`;
+    if (typeof value === "number") {
+      // Show decimal in last 10 seconds for timed exercises (not rest)
+      if (showDecimals) {
+        const tenths = Math.floor(remainingMs / 100);
+        return `${value}.${tenths}`;
+      }
+      return value;
     }
     return value;
-  }, [value, remainingMs, isNearEnd]);
+  }, [value, remainingMs, showDecimals]);
 
   return (
     <div className={`relative ${animationClass}`} onClick={onClick}>
@@ -77,7 +92,7 @@ export function TimerCircle({
           stroke="rgba(255, 255, 255, 0.1)"
           strokeWidth="12"
         />
-        {/* Progress circle */}
+        {/* Progress circle - continuous sweep */}
         {isCountdown && totalSeconds > 0 && (
           <circle
             cx="160"
@@ -89,7 +104,7 @@ export function TimerCircle({
             strokeLinecap="round"
             strokeDasharray={circumference}
             strokeDashoffset={circumference - (progress / 100) * circumference}
-            style={{ transition: "stroke-dashoffset 0.1s linear, stroke 0.5s ease-out" }}
+            className="transition-[stroke] duration-300 ease-out"
           />
         )}
         {/* Full circle for non-timed or start state */}
@@ -108,30 +123,26 @@ export function TimerCircle({
 
       {/* Inner filled circle */}
       <div
-        className={`absolute inset-8 rounded-full flex flex-col items-center justify-center ${
-          isRest && !isPaused ? "animate-rest-gradient-bg" : ""
-        }`}
+        className={`absolute inset-8 rounded-full flex flex-col items-center justify-center`}
         style={{
-          backgroundColor: isRest && !isPaused ? undefined : circleColor,
+          backgroundColor: circleColor,
           boxShadow: `0 0 60px ${circleColor}40`,
-          transition: "background-color 0.5s ease-out, box-shadow 0.5s ease-out",
+          transition: "background-color 0.3s ease-out, box-shadow 0.3s ease-out",
         }}
       >
         <span
           className={`font-bold text-white ${
             typeof displayValue === "string" && displayValue.length > 5
-              ? "text-3xl"
+              ? "text-4xl"
               : typeof displayValue === "string" && displayValue.length > 4
-                ? "text-4xl"
-                : "text-6xl"
+                ? "text-5xl"
+                : "text-7xl"
           }`}
         >
           {displayValue}
         </span>
         {subtext && <span className="text-white/80 text-lg mt-1">{subtext}</span>}
-        {isPaused && (
-          <span className="text-white/60 text-sm mt-2">PAUSED - Click to resume</span>
-        )}
+        {isPaused && <span className="text-white/60 text-sm mt-2">PAUSED - Click to resume</span>}
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import type { Exercise } from "./types/workout";
 import { ConfigurationMode } from "./components/ConfigurationMode";
 import { WorkoutMode } from "./components/WorkoutMode";
@@ -6,20 +6,15 @@ import { WorkoutMode } from "./components/WorkoutMode";
 type AppMode = "config" | "workout" | "auth";
 
 function App() {
-  const [mode, setMode] = useState<AppMode>("auth");
+  const [mode, setMode] = useState<AppMode>(() => {
+    const token = sessionStorage.getItem("auth_token");
+    return token ? "config" : "auth";
+  });
   const [workoutExercises, setWorkoutExercises] = useState<Exercise[]>([]);
-  const [savedWorkoutId, setSavedWorkoutId] = useState<string | null>(null);
+  const [savedWorkoutId] = useState<string | null>(null);
   const [storedExercises, setStoredExercises] = useState<Exercise[]>([]);
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState("");
-
-  // Check if already authenticated
-  useEffect(() => {
-    const token = sessionStorage.getItem("auth_token");
-    if (token) {
-      setMode("config");
-    }
-  }, []);
 
   const handleLogin = async () => {
     try {
@@ -73,9 +68,7 @@ function App() {
                 autoFocus
               />
             </div>
-            {authError && (
-              <p className="text-coral text-sm text-center">{authError}</p>
-            )}
+            {authError && <p className="text-coral text-sm text-center">{authError}</p>}
             <button
               onClick={handleLogin}
               className="w-full py-3 bg-ocean hover:bg-ocean-dark text-white font-semibold 
@@ -100,10 +93,7 @@ function App() {
   }
 
   return (
-    <ConfigurationMode
-      onStartWorkout={handleStartWorkout}
-      initialExercises={storedExercises}
-    />
+    <ConfigurationMode onStartWorkout={handleStartWorkout} initialExercises={storedExercises} />
   );
 }
 

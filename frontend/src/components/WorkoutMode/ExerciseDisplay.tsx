@@ -1,87 +1,99 @@
-import { useEffect, useState } from "react";
 import type { FlattenedExercise } from "../../types/workout";
 
-interface ExerciseDisplayProps {
+interface CurrentExerciseProps {
   current: FlattenedExercise | null;
-  next: FlattenedExercise | null;
   isNumeric?: boolean;
+  isCountdown?: boolean;
 }
 
-function formatExercise(item: FlattenedExercise): string {
-  const { exercise, loopInfo } = item;
+interface NextExerciseProps {
+  next: FlattenedExercise | null;
+}
 
-  let text = "";
+function formatExerciseName(item: FlattenedExercise, showDuration = true): string {
+  const { exercise } = item;
 
   if (exercise.type === "rest") {
-    text = "REST";
+    return showDuration ? `${exercise.duration}s REST` : "REST";
   } else if (exercise.type === "timed") {
-    text = `${exercise.duration}s ${exercise.name.toUpperCase()}`;
+    let text = showDuration
+      ? `${exercise.duration}s ${exercise.name.toUpperCase()}`
+      : exercise.name.toUpperCase();
     if (exercise.instruction) {
       text += ` - ${exercise.instruction}`;
     }
+    return text;
   } else if (exercise.type === "numeric") {
-    text = `${exercise.count} ${exercise.name.toUpperCase()}`;
+    let text = `${exercise.count} ${exercise.name.toUpperCase()}`;
     if (exercise.unit) {
       text += ` (${exercise.unit})`;
     }
     if (exercise.instruction) {
       text += ` - ${exercise.instruction}`;
     }
+    return text;
   }
 
-  if (loopInfo) {
-    text = `[Round ${loopInfo.round}/${loopInfo.totalRounds}] ${text}`;
-  }
-
-  return text;
+  return "";
 }
 
-export function ExerciseDisplay({ current, next, isNumeric }: ExerciseDisplayProps) {
-  const [animateNext, setAnimateNext] = useState(false);
-  const [prevCurrentId, setPrevCurrentId] = useState<string | null>(null);
+// Generate a unique key for the current exercise to trigger animation on change
+function getExerciseKey(item: FlattenedExercise | null): string {
+  if (!item) return "none";
+  const { exercise, loopInfo } = item;
+  return `${exercise.type}-${loopInfo?.round || 0}-${JSON.stringify(exercise)}`;
+}
 
-  // Detect exercise change and trigger animation
-  useEffect(() => {
-    const currentId = current
-      ? `${current.exercise.type}-${current.loopInfo?.round || 0}`
-      : null;
+export function CurrentExercise({ current, isNumeric, isCountdown }: CurrentExerciseProps) {
+  if (!current) return null;
 
-    if (prevCurrentId !== null && currentId !== prevCurrentId) {
-      setAnimateNext(true);
-      const timer = setTimeout(() => setAnimateNext(false), 500);
-      return () => clearTimeout(timer);
-    }
-
-    setPrevCurrentId(currentId);
-  }, [current, prevCurrentId]);
+  const currentKey = getExerciseKey(current);
 
   return (
-    <div className="text-center space-y-6 w-full max-w-xl">
-      {/* Current exercise */}
-      {current && (
-        <div className={animateNext ? "animate-exercise-pop" : ""}>
-          <p className="text-gray-400 text-sm uppercase tracking-wider mb-2">Current</p>
-          <h2 className="text-2xl md:text-3xl font-bold text-white">{formatExercise(current)}</h2>
+    <div className="text-center w-full max-w-2xl">
+      <div key={currentKey} className="animate-exercise-pop">
+        <div className="flex items-center justify-center gap-3 mb-3">
+          <p className="text-gray-400 text-sm uppercase tracking-wider">
+            {isCountdown ? "Up Next" : "Current"}
+          </p>
+          {current.loopInfo && (
+            <span className="px-2 py-0.5 bg-purple-500/30 text-purple-300 text-sm font-medium rounded">
+              {current.loopInfo.round}/{current.loopInfo.totalRounds}
+            </span>
+          )}
         </div>
-      )}
-
-      {/* Next exercise */}
-      {next && (
-        <div className="pt-4 border-t border-gray-700">
-          <p className="text-gray-500 text-sm uppercase tracking-wider mb-2">Next</p>
-          <p className="text-xl text-gray-400">{formatExercise(next)}</p>
-        </div>
-      )}
+        <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white leading-tight">
+          {formatExerciseName(current, false)}
+        </h2>
+      </div>
 
       {/* Space instruction for numeric exercises */}
-      {isNumeric && (
-        <div className="pt-4">
+      {isNumeric && !isCountdown && (
+        <div className="mt-6">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-gray-800 rounded-lg">
             <kbd className="px-3 py-1 bg-gray-700 rounded text-white font-mono text-sm">SPACE</kbd>
             <span className="text-gray-400">to continue</span>
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+export function NextExercise({ next }: NextExerciseProps) {
+  if (!next) return null;
+
+  return (
+    <div className="text-center w-full max-w-xl">
+      <div className="flex items-center justify-center gap-3 mb-2">
+        <p className="text-gray-500 text-sm uppercase tracking-wider">Next</p>
+        {next.loopInfo && (
+          <span className="px-2 py-0.5 bg-gray-700 text-gray-400 text-xs font-medium rounded">
+            {next.loopInfo.round}/{next.loopInfo.totalRounds}
+          </span>
+        )}
+      </div>
+      <p className="text-xl text-gray-400">{formatExerciseName(next)}</p>
     </div>
   );
 }
