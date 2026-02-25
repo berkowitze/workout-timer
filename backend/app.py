@@ -18,6 +18,7 @@ FRONTEND_DIST = Path(__file__).parent.parent / "frontend" / "dist"
 static_folder = str(FRONTEND_DIST) if FRONTEND_DIST.exists() else None
 
 app = Flask(__name__, static_folder=static_folder, static_url_path="")
+app.secret_key = os.getenv("JWT_SECRET_KEY", "dev-secret-change-in-production")
 CORS(app)
 
 # Database setup
@@ -44,8 +45,17 @@ def init_db() -> None:
 
 # Import and register routes
 from routes.ai import ai_bp
-from routes.auth import auth_bp
+from routes.auth import auth_bp, oauth
 from routes.workouts import workouts_bp
+
+oauth.init_app(app)
+oauth.register(
+    name="google",
+    client_id=os.getenv("GOOGLE_CLIENT_ID"),
+    client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
+    server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
+    client_kwargs={"scope": "openid email profile"},
+)
 
 app.register_blueprint(auth_bp, url_prefix="/api")
 app.register_blueprint(workouts_bp, url_prefix="/api")
@@ -72,4 +82,4 @@ def serve_frontend(path: str) -> Any:
 
 if __name__ == "__main__":
     init_db()
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5001)

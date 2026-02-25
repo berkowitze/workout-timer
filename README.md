@@ -5,6 +5,7 @@ A web app for circuit/interval/timed workouts with AI-powered workout parsing.
 ## Local Development Setup
 
 ### Prerequisites
+
 - Python 3.10+
 - Node.js 20+
 - PostgreSQL
@@ -28,19 +29,21 @@ pip install -r requirements.txt
 ```
 
 Create `backend/.env` file:
+
 ```
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/workout_timer
 OPENAI_API_KEY=sk-your-api-key-here
-APP_PASSWORD=your-password-here
 ```
 
 Create the database:
+
 ```bash
 # Connect to PostgreSQL and create database
 psql -U postgres -c "CREATE DATABASE workout_timer;"
 ```
 
 Run the backend:
+
 ```bash
 cd backend
 .\venv\Scripts\activate  # or source venv/bin/activate on macOS/Linux
@@ -64,6 +67,7 @@ The frontend runs on http://localhost:5173 and proxies `/api` requests to the ba
 Open two terminals:
 
 **Terminal 1 (Backend):**
+
 ```bash
 cd backend
 .\venv\Scripts\activate
@@ -71,6 +75,7 @@ python app.py
 ```
 
 **Terminal 2 (Frontend):**
+
 ```bash
 cd frontend
 npm run dev

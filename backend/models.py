@@ -24,3 +24,13 @@ class Workout(Base):  # type: ignore[misc]
             "exercises": self.exercises,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
+
+
+class User(Base):  # type: ignore[misc]
+    __tablename__ = "users"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    password_hash = Column(String(255), nullable=True)  # null for Google-only users
+    google_id = Column(String(255), unique=True, nullable=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)

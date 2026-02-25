@@ -1,37 +1,77 @@
+import json
 import os
 from typing import Any
 
 from flask import Blueprint, Response, jsonify, request
 from openai import OpenAI
+from pydantic import ValidationError
 
 from routes.auth import require_auth
-from schemas import ParsedExercise, WorkoutName, WorkoutParsed
+from schemas import WorkoutParsed
 
 ai_bp = Blueprint("ai", __name__)
 
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-def _clean_exercise(ex: ParsedExercise) -> dict[str, Any]:
-    """Convert flat ParsedExercise to clean typed dict with only relevant fields."""
+MAX_RETRIES = 2
+
+PARSE_SYSTEM_PROMPT = """You are a workout parser. Convert workout descriptions into JSON.
+
+Output ONLY valid JSON with this exact structure — no markdown, no explanation:
+{"exercises": [<exercise>, ...]}
+
+Each exercise must be one of:
+
+  {"type": "timed", "name": "...", "duration": <seconds>}
+    Optional field: "instruction": "..."
+
+  {"type": "rest", "duration": <seconds>}
+
+  {"type": "numeric", "name": "...", "count": <integer>}
+    Optional fields: "unit": "...", "instruction": "..."
+
+  {"type": "loop", "rounds": <integer>, "exercises": [<exercise>, ...]}
+    Loops can be nested.
+
+Guidelines:
+
+Keep the order of exercises as close as possible to the original text.
+
+LOOPS: Extract the round count from phrases like "3 rounds of:", "repeat 4 times:", etc.
+Use your best judgment (indentation, newlines, wording) to determine loop boundaries.
+Nested loops are allowed.
+
+SINGLE ROUNDS: Do NOT wrap the whole workout in a loop of 1. "1 round of X, Y" → [X, Y].
+
+NUMERIC EXERCISES: Always extract a number.
+- "1000m row" → count: 1000, unit: "meters", name: "row"
+- "20 pushups" → count: 20, name: "pushups"
+- "50 cal row" → count: 50, unit: "calories", name: "row"
+
+TIME: Convert to seconds (1 minute = 60, 6 minutes = 360).
+
+CONTEXT: Include parenthetical context in names when relevant.
+"1 minute max effort (rowing)" → name: "row", instruction: "max effort"
+
+INSTRUCTIONS: Extract intensity/form cues into "instruction".
+"on/off" patterns → alternating work (timed) and rest."""
+
+NAME_SYSTEM_PROMPT = """Generate a short, catchy workout name (2-4 words) based on the exercises.
+Respond with the name only — no quotes, no explanation.
+Examples: Core Crusher, Plank Party, Full Body Burn, Quick HIIT Blast"""
+
+
+def _clean_exercise(ex: Any) -> dict[str, Any]:
+    """Convert ParsedExercise to clean dict with only relevant fields."""
     if ex.type == "timed":
-        result: dict[str, Any] = {
-            "type": "timed",
-            "name": ex.name or "exercise",
-            "duration": ex.duration or 0,
-        }
+        result: dict[str, Any] = {"type": "timed", "name": ex.name or "exercise", "duration": ex.duration or 0}
         if ex.instruction:
             result["instruction"] = ex.instruction
         return result
     elif ex.type == "rest":
-        return {
-            "type": "rest",
-            "duration": ex.duration or 0,
-        }
+        return {"type": "rest", "duration": ex.duration or 0}
     elif ex.type == "numeric":
-        result = {
-            "type": "numeric",
-            "name": ex.name or "exercise",
-            "count": ex.count or 0,
-        }
+        result = {"type": "numeric", "name": ex.name or "exercise", "count": ex.count or 0}
         if ex.unit:
             result["unit"] = ex.unit
         if ex.instruction:
@@ -45,64 +85,6 @@ def _clean_exercise(ex: ParsedExercise) -> dict[str, Any]:
         }
     return {"type": ex.type}
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-PARSE_SYSTEM_PROMPT = """You are a workout parser. Convert workout descriptions into structured exercises.
-
-Each exercise must be one of these types:
-1. Timed exercise: For exercises with a time duration (e.g., "30s plank", "1 minute plank hold")
-2. Rest: For rest periods (e.g., "rest 1 minute", "30 seconds rest")
-3. Numeric exercise: For exercises with a count (e.g., "20 pushups", "500m row")
-4. Loop: For repeated rounds (e.g., "3 rounds: 20 pushups, 10 situps")
-
-CRITICAL Guidelines:
-
-Generally, keep the order of exercises as close as possible to the original text.
-
-LOOPS - EXTRACTING ROUND NUMBERS:
-- "3 rounds of:" → rounds: 3
-- "6 rounds of:" → rounds: 6  
-- "repeat 4 times:" → rounds: 4
-
-LOOP BOUNDARIES - Use your best judgment (based on words, whitespace, newlines, etc.) to determine
-if a loop is nested or not, and when a loop ends and the next exercise begins.
-
-NESTED LOOPS: Loops can contain other loops. Pay careful attention to indentation and structure.
-Example input:
-"3 rounds of:
-  6 rounds of:
-    1 minute max effort
-    1 minute off
-  6 minutes rest"
-
-Should become: loop(rounds=3, [loop(rounds=6, [timed 60s, timed 60s]), rest(360)])
-
-NUMERIC EXERCISES WITH DISTANCE/UNITS:
-- Always extract a number. "1000m" means count=1000, not count=0.
-- Optionally extract a unit. "1000m" means unit="meters", not unit=None.
-    unit=None is valid too.
-- "1000m row" → count: 1000, unit: "meters", name: "row"
-- "20 pushups" → count: 20, unit: None, name: "pushups"
-- "500m run" → count: 500, unit: "meters", name: "run"  
-- "2000m bike" → count: 2000, unit: "meters", name: "bike"
-- "50 cal row" → count: 50, unit: "calories", name: "row"
-
-CONTEXT FROM PARENTHETICALS: When text in parentheses describes the equipment or activity 
-(e.g., "(rowing ergometer)", "(on bike)", "(kettlebell)"), include that context in exercise names.
-Example: "1 minute max effort (rowing)" → name: "row", instruction: "max effort"
-
-SINGLE ROUNDS: Do NOT wrap the entire workout in a loop of 1 round. 
-If the user says "1 round of X, Y, Z", just output [X, Y, Z] directly, not loop(1, [X, Y, Z]).
-
-OTHER GUIDELINES:
-- Parse time durations to seconds (1 minute = 60 seconds, 6 minutes = 360 seconds)
-- Extract intensity/form instructions like "max effort", "one arm out" into the instruction field
-- "on/off" patterns typically mean alternating work and rest/recovery efforts"""
-
-NAME_SYSTEM_PROMPT = """Generate a short, catchy workout name (2-4 words) based on the exercises provided.
-Be creative but descriptive.
-Examples: "Core Crusher", "Plank Party", "Full Body Burn", "Quick HIIT Blast", "Strength Circuit"."""
-
 
 @ai_bp.route("/parse-workout", methods=["POST"])
 @require_auth
@@ -114,39 +96,35 @@ def parse_workout() -> tuple[Response, int] | Response:
         if not raw_text.strip():
             return jsonify({"error": "No workout text provided"}), 400
 
-        completion = client.beta.chat.completions.parse(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": PARSE_SYSTEM_PROMPT},
-                {"role": "user", "content": raw_text},
-            ],
-            response_format=WorkoutParsed,
-            temperature=0.3,
-        )
+        messages: list[dict[str, str]] = [
+            {"role": "system", "content": PARSE_SYSTEM_PROMPT},
+            {"role": "user", "content": raw_text},
+        ]
 
-        message = completion.choices[0].message
+        last_error = ""
+        for attempt in range(MAX_RETRIES + 1):
+            completion = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=messages,
+                temperature=0.3,
+            )
+            raw_response = completion.choices[0].message.content or ""
 
-        # Handle refusals
-        if message.refusal:
-            return jsonify({"error": f"Request refused: {message.refusal}"}), 400
+            try:
+                parsed_json = json.loads(raw_response)
+                validated = WorkoutParsed.model_validate(parsed_json)
+                exercises = [_clean_exercise(ex) for ex in validated.exercises]
+                return jsonify({"exercises": exercises})
+            except (json.JSONDecodeError, ValidationError, Exception) as e:
+                last_error = str(e)
+                if attempt < MAX_RETRIES:
+                    messages.append({"role": "assistant", "content": raw_response})
+                    messages.append({
+                        "role": "user",
+                        "content": f"The JSON you returned had an error: {last_error}\nFix it and return valid JSON only, no explanation.",
+                    })
 
-        if message.parsed is None:
-            return jsonify({"error": "Failed to parse workout"}), 500
-
-        # Log raw LLM response before transforms
-        import sys
-        print("=== RAW LLM RESPONSE ===", flush=True)
-        print(f"Total exercises: {len(message.parsed.exercises)}", flush=True)
-        for i, ex in enumerate(message.parsed.exercises):
-            print(f"\n[{i}] {ex.type}:", flush=True)
-            print(ex.model_dump_json(indent=2), flush=True)
-        print("\n========================", flush=True)
-        sys.stdout.flush()
-
-        # Convert to clean typed dicts (removes null fields, ensures proper structure)
-        exercises = [_clean_exercise(ex) for ex in message.parsed.exercises]
-
-        return jsonify({"exercises": exercises})
+        return jsonify({"error": f"Failed to parse workout: {last_error}"}), 500
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -162,38 +140,26 @@ def generate_name() -> tuple[Response, int] | Response:
         if not exercises:
             return jsonify({"error": "No exercises provided"}), 400
 
-        # Create a summary of exercises for the AI
-        exercise_summary = _summarize_exercises(exercises)
-
-        completion = client.beta.chat.completions.parse(
+        completion = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": NAME_SYSTEM_PROMPT},
-                {"role": "user", "content": f"Generate a name for this workout:\n{exercise_summary}"},
+                {"role": "user", "content": f"Generate a name for this workout:\n{_summarize_exercises(exercises)}"},
             ],
-            response_format=WorkoutName,
             temperature=0.8,
+            max_tokens=16,
         )
 
-        message = completion.choices[0].message
-
-        if message.refusal:
-            return jsonify({"name": "My Workout"})
-
-        if message.parsed is None:
-            return jsonify({"name": "My Workout"})
-
-        return jsonify({"name": message.parsed.name})
+        name = (completion.choices[0].message.content or "My Workout").strip().strip('"')
+        return jsonify({"name": name})
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
 def _summarize_exercises(exercises: list[dict[str, Any]], indent: int = 0) -> str:
-    """Create a human-readable summary of exercises for the AI."""
     lines = []
     prefix = "  " * indent
-
     for ex in exercises:
         ex_type = ex.get("type", "")
         if ex_type == "timed":
@@ -215,7 +181,5 @@ def _summarize_exercises(exercises: list[dict[str, Any]], indent: int = 0) -> st
             continue
         else:
             continue
-
         lines.append(line)
-
     return "\n".join(lines)
