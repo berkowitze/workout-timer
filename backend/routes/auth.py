@@ -142,7 +142,7 @@ def google_callback() -> Response:
             db.refresh(user)
 
         jwt_token = _make_jwt(str(user.id))
-        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
+        frontend_url = os.getenv("FRONTEND_URL", "")
         return redirect(f"{frontend_url}/?token={jwt_token}")  # type: ignore[return-value]
     finally:
         db.close()
