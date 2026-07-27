@@ -1,12 +1,14 @@
 import os
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from functools import wraps
-from typing import Any, Callable
+from typing import Any
 
 import bcrypt
 import jwt
 from authlib.integrations.flask_client import OAuth
 from flask import Blueprint, Response, jsonify, redirect, request
+from jwt.api_jwt import PyJWT
 
 auth_bp = Blueprint("auth", __name__)
 oauth = OAuth()
@@ -22,12 +24,12 @@ def _make_jwt(user_id: str) -> str:
         "iat": datetime.now(timezone.utc),
         "exp": datetime.now(timezone.utc) + timedelta(days=JWT_EXPIRY_DAYS),
     }
-    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    return PyJWT().encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
-def _decode_jwt(token: str) -> dict | None:
+def _decode_jwt(token: str) -> dict[str, Any] | None:
     try:
-        return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])  # type: ignore[no-any-return]
     except jwt.PyJWTError:
         return None
 
@@ -109,7 +111,7 @@ def google_login() -> Response:
     redirect_uri = os.getenv(
         "GOOGLE_REDIRECT_URI", "http://localhost:5001/api/auth/google/callback"
     )
-    return oauth.google.authorize_redirect(redirect_uri)
+    return oauth.google.authorize_redirect(redirect_uri)  # type: ignore[no-any-return]
 
 
 @auth_bp.route("/auth/google/callback", methods=["GET"])
@@ -141,6 +143,6 @@ def google_callback() -> Response:
 
         jwt_token = _make_jwt(str(user.id))
         frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
-        return redirect(f"{frontend_url}/?token={jwt_token}")
+        return redirect(f"{frontend_url}/?token={jwt_token}")  # type: ignore[return-value]
     finally:
         db.close()

@@ -43,10 +43,10 @@ def init_db() -> None:
     Base.metadata.create_all(bind=engine)
 
 
-# Import and register routes
-from routes.ai import ai_bp
-from routes.auth import auth_bp, oauth
-from routes.workouts import workouts_bp
+# Import and register routes (must be after app/db setup to avoid circular imports)
+from routes.ai import ai_bp  # noqa: E402
+from routes.auth import auth_bp, oauth  # noqa: E402
+from routes.workouts import workouts_bp  # noqa: E402
 
 oauth.init_app(app)
 oauth.register(

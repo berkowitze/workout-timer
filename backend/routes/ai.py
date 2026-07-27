@@ -6,84 +6,16 @@ from flask import Blueprint, Response, jsonify, request
 from openai import OpenAI
 from pydantic import ValidationError
 
+from prompts import NAME_SYSTEM_PROMPT, SYSTEM_PROMPT
 from routes.auth import require_auth
 from schemas import WorkoutParsed
+from utils import clean_exercise
 
 ai_bp = Blueprint("ai", __name__)
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 MAX_RETRIES = 2
-
-PARSE_SYSTEM_PROMPT = """You are a workout parser. Convert workout descriptions into JSON.
-
-Output ONLY valid JSON with this exact structure — no markdown, no explanation:
-{"exercises": [<exercise>, ...]}
-
-Each exercise must be one of:
-
-  {"type": "timed", "name": "...", "duration": <seconds>}
-    Optional field: "instruction": "..."
-
-  {"type": "rest", "duration": <seconds>}
-
-  {"type": "numeric", "name": "...", "count": <integer>}
-    Optional fields: "unit": "...", "instruction": "..."
-
-  {"type": "loop", "rounds": <integer>, "exercises": [<exercise>, ...]}
-    Loops can be nested.
-
-Guidelines:
-
-Keep the order of exercises as close as possible to the original text.
-
-LOOPS: Extract the round count from phrases like "3 rounds of:", "repeat 4 times:", etc.
-Use your best judgment (indentation, newlines, wording) to determine loop boundaries.
-Nested loops are allowed.
-
-SINGLE ROUNDS: Do NOT wrap the whole workout in a loop of 1. "1 round of X, Y" → [X, Y].
-
-NUMERIC EXERCISES: Always extract a number.
-- "1000m row" → count: 1000, unit: "meters", name: "row"
-- "20 pushups" → count: 20, name: "pushups"
-- "50 cal row" → count: 50, unit: "calories", name: "row"
-
-TIME: Convert to seconds (1 minute = 60, 6 minutes = 360).
-
-CONTEXT: Include parenthetical context in names when relevant.
-"1 minute max effort (rowing)" → name: "row", instruction: "max effort"
-
-INSTRUCTIONS: Extract intensity/form cues into "instruction".
-"on/off" patterns → alternating work (timed) and rest."""
-
-NAME_SYSTEM_PROMPT = """Generate a short, catchy workout name (2-4 words) based on the exercises.
-Respond with the name only — no quotes, no explanation.
-Examples: Core Crusher, Plank Party, Full Body Burn, Quick HIIT Blast"""
-
-
-def _clean_exercise(ex: Any) -> dict[str, Any]:
-    """Convert ParsedExercise to clean dict with only relevant fields."""
-    if ex.type == "timed":
-        result: dict[str, Any] = {"type": "timed", "name": ex.name or "exercise", "duration": ex.duration or 0}
-        if ex.instruction:
-            result["instruction"] = ex.instruction
-        return result
-    elif ex.type == "rest":
-        return {"type": "rest", "duration": ex.duration or 0}
-    elif ex.type == "numeric":
-        result = {"type": "numeric", "name": ex.name or "exercise", "count": ex.count or 0}
-        if ex.unit:
-            result["unit"] = ex.unit
-        if ex.instruction:
-            result["instruction"] = ex.instruction
-        return result
-    elif ex.type == "loop":
-        return {
-            "type": "loop",
-            "rounds": ex.rounds or 1,
-            "exercises": [_clean_exercise(sub) for sub in (ex.exercises or [])],
-        }
-    return {"type": ex.type}
 
 
 @ai_bp.route("/parse-workout", methods=["POST"])
@@ -97,7 +29,7 @@ def parse_workout() -> tuple[Response, int] | Response:
             return jsonify({"error": "No workout text provided"}), 400
 
         messages: list[dict[str, str]] = [
-            {"role": "system", "content": PARSE_SYSTEM_PROMPT},
+            {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": raw_text},
         ]
 
@@ -105,7 +37,7 @@ def parse_workout() -> tuple[Response, int] | Response:
         for attempt in range(MAX_RETRIES + 1):
             completion = client.chat.completions.create(
                 model="gpt-4o-mini",
-                messages=messages,
+                messages=messages,  # type: ignore[arg-type]
                 temperature=0.3,
             )
             raw_response = completion.choices[0].message.content or ""
@@ -113,16 +45,18 @@ def parse_workout() -> tuple[Response, int] | Response:
             try:
                 parsed_json = json.loads(raw_response)
                 validated = WorkoutParsed.model_validate(parsed_json)
-                exercises = [_clean_exercise(ex) for ex in validated.exercises]
+                exercises = [clean_exercise(ex) for ex in validated.exercises]
                 return jsonify({"exercises": exercises})
             except (json.JSONDecodeError, ValidationError, Exception) as e:
                 last_error = str(e)
                 if attempt < MAX_RETRIES:
                     messages.append({"role": "assistant", "content": raw_response})
-                    messages.append({
-                        "role": "user",
-                        "content": f"The JSON you returned had an error: {last_error}\nFix it and return valid JSON only, no explanation.",
-                    })
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": f"The JSON you returned had an error: {last_error}\nFix it and return valid JSON only, no explanation.",
+                        }
+                    )
 
         return jsonify({"error": f"Failed to parse workout: {last_error}"}), 500
 
@@ -144,7 +78,10 @@ def generate_name() -> tuple[Response, int] | Response:
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": NAME_SYSTEM_PROMPT},
-                {"role": "user", "content": f"Generate a name for this workout:\n{_summarize_exercises(exercises)}"},
+                {
+                    "role": "user",
+                    "content": f"Generate a name for this workout:\n{_summarize_exercises(exercises)}",
+                },
             ],
             temperature=0.8,
             max_tokens=16,

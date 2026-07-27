@@ -9,7 +9,7 @@ from sqlalchemy.orm import declarative_base
 Base = declarative_base()
 
 
-class Workout(Base):  # type: ignore[misc]
+class Workout(Base):  # type: ignore[valid-type, misc]
     __tablename__ = "workouts"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -26,7 +26,7 @@ class Workout(Base):  # type: ignore[misc]
         }
 
 
-class User(Base):  # type: ignore[misc]
+class User(Base):  # type: ignore[valid-type, misc]
     __tablename__ = "users"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
