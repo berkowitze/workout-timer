@@ -1,5 +1,9 @@
 anthropic/claude-haiku-4-5/unstructured/complex
 anthropic/claude-haiku-4-5/unstructured/simple
+cerebras/gpt-oss-120b/structured/complex
+cerebras/gpt-oss-120b/structured/simple
+cerebras/gpt-oss-120b/unstructured/complex
+cerebras/gpt-oss-120b/unstructured/simple
 cerebras/llama3.1-8b/structured/complex
 cerebras/llama3.1-8b/structured/simple
 cerebras/llama3.1-8b/unstructured/complex
@@ -12,6 +16,10 @@ google/gemini-2.5-flash/structured/complex
 google/gemini-2.5-flash/structured/simple
 google/gemini-2.5-flash/unstructured/complex
 google/gemini-2.5-flash/unstructured/simple
+groq/gpt-oss-20b/structured/complex
+groq/gpt-oss-20b/structured/simple
+groq/gpt-oss-20b/unstructured/complex
+groq/gpt-oss-20b/unstructured/simple
 groq/llama-3.1-8b/structured/complex
 groq/llama-3.1-8b/structured/simple
 groq/llama-3.1-8b/unstructured/complex
@@ -31,3 +39,11 @@ openai/gpt-4o-mini/structured/complex
 openai/gpt-4o-mini/structured/simple
 openai/gpt-4o-mini/unstructured/complex
 openai/gpt-4o-mini/unstructured/simple
+openai/gpt-5.4-mini/structured/complex
+openai/gpt-5.4-mini/structured/simple
+openai/gpt-5.4-mini/unstructured/complex
+openai/gpt-5.4-mini/unstructured/simple
+openai/gpt-5.4-nano/structured/complex
+openai/gpt-5.4-nano/structured/simple
+openai/gpt-5.4-nano/unstructured/complex
+openai/gpt-5.4-nano/unstructured/simple

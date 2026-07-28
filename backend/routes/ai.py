@@ -51,7 +51,7 @@ def parse_workout() -> tuple[Response, int] | Response:
         last_error = ""
         for attempt in range(MAX_RETRIES + 1):
             completion = client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-5.4-nano",
                 messages=messages,  # type: ignore[arg-type]
                 temperature=0.3,
             )

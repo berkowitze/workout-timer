@@ -1,25 +1,37 @@
 # Workout Parse Benchmark Results
 
-_Generated: 2026-02-25 15:33:11_
+_Generated: 2026-07-27 20:37:59_
 
 | Provider | Model | Structured | Simple (s) | Complex (s) | Errors |
 |----------|-------|-----------|-----------|------------|--------|
-| groq | llama-3.3-70b | no | 0.65 | 1.04 |  |
-| anthropic | claude-haiku-4-5 | no | 0.94 | 2.13 |  |
-| groq | llama-3.3-70b | yes | 0.52 | 0.81 |  |
-| groq | llama-3.1-8b | no | 0.40 | 0.56 |  |
-| openai | gpt-4o-mini | no | 2.14 | 6.30 |  |
-| groq | llama-3.1-8b | yes | 0.70 | 0.76 |  |
-| google | gemini-2.5-flash | no | 2.58 | 6.14 |  |
-| openai | gpt-4o-mini | yes | 4.34 | 18.25 |  |
-| cerebras | llama3.1-8b | no | 4.39 | 4.45 |  |
-| google | gemini-2.5-flash | yes | 2.39 | 9.76 |  |
-| openai | gpt-4.1-mini | no | 1.18 | 18.80 |  |
-| google | gemini-2.5-flash-lite | no | 0.72 | 1.31 |  |
-| cerebras | llama3.1-8b | yes | 3.17 | 3.54 |  |
-| google | gemini-2.5-flash-lite | yes | 0.84 | 2.58 |  |
-| openai | gpt-4.1-mini | yes | 12.64 | 12.18 |  |
-| openai | gpt-4.1-nano | no | ERR | 6.91 | Expecting ',' delimiter: line 1 column 222 (char 221) |
-| openai | gpt-4.1-nano | yes | 5.37 | 15.10 |  |
+| openai | gpt-4o-mini | no | skip | skip |  |
+| openai | gpt-4o-mini | yes | skip | skip |  |
+| openai | gpt-4.1-mini | no | skip | skip |  |
+| openai | gpt-4.1-mini | yes | skip | skip |  |
+| openai | gpt-4.1-nano | no | ERR | skip | Expecting ',' delimiter: line 1 column 222 (char 221) |
+| openai | gpt-4.1-nano | yes | skip | skip |  |
+| anthropic | claude-haiku-4-5 | no | skip | skip |  |
+| google | gemini-2.5-flash | no | skip | skip |  |
+| google | gemini-2.5-flash | yes | skip | skip |  |
+| google | gemini-2.5-flash-lite | no | skip | skip |  |
+| google | gemini-2.5-flash-lite | yes | skip | skip |  |
+| groq | llama-3.3-70b | no | skip | skip |  |
+| groq | llama-3.3-70b | yes | skip | skip |  |
+| groq | llama-3.1-8b | no | skip | skip |  |
+| groq | llama-3.1-8b | yes | skip | skip |  |
+| cerebras | llama3.1-8b | no | skip | skip |  |
+| cerebras | llama3.1-8b | yes | skip | skip |  |
+| google | gemini-3.6-flash | no | ERR | ERR | 400 INVALID_ARGUMENT. {'error': {'code': 400, 'message': 'API key not valid. Please pass a valid API key.', 'status': 'INVALID_ARGUMENT', 'details': [{'@type': 'type.googleapis.com/google.rpc.ErrorInfo', 'reason': 'API_KEY_INVALID', 'domain': 'googleapis.com', 'metadata': {'service': 'generativelanguage.googleapis.com'}}, {'@type': 'type.googleapis.com/google.rpc.LocalizedMessage', 'locale': 'en-US', 'message': 'API key not valid. Please pass a valid API key.'}]}}; 400 INVALID_ARGUMENT. {'error': {'code': 400, 'message': 'API key not valid. Please pass a valid API key.', 'status': 'INVALID_ARGUMENT', 'details': [{'@type': 'type.googleapis.com/google.rpc.ErrorInfo', 'reason': 'API_KEY_INVALID', 'domain': 'googleapis.com', 'metadata': {'service': 'generativelanguage.googleapis.com'}}, {'@type': 'type.googleapis.com/google.rpc.LocalizedMessage', 'locale': 'en-US', 'message': 'API key not valid. Please pass a valid API key.'}]}} |
+| google | gemini-3.6-flash | yes | ERR | ERR | 400 INVALID_ARGUMENT. {'error': {'code': 400, 'message': 'API key not valid. Please pass a valid API key.', 'status': 'INVALID_ARGUMENT', 'details': [{'@type': 'type.googleapis.com/google.rpc.ErrorInfo', 'reason': 'API_KEY_INVALID', 'domain': 'googleapis.com', 'metadata': {'service': 'generativelanguage.googleapis.com'}}, {'@type': 'type.googleapis.com/google.rpc.LocalizedMessage', 'locale': 'en-US', 'message': 'API key not valid. Please pass a valid API key.'}]}}; 400 INVALID_ARGUMENT. {'error': {'code': 400, 'message': 'API key not valid. Please pass a valid API key.', 'status': 'INVALID_ARGUMENT', 'details': [{'@type': 'type.googleapis.com/google.rpc.ErrorInfo', 'reason': 'API_KEY_INVALID', 'domain': 'googleapis.com', 'metadata': {'service': 'generativelanguage.googleapis.com'}}, {'@type': 'type.googleapis.com/google.rpc.LocalizedMessage', 'locale': 'en-US', 'message': 'API key not valid. Please pass a valid API key.'}]}} |
+| google | gemini-3.5-flash-lite | no | ERR | ERR | 400 INVALID_ARGUMENT. {'error': {'code': 400, 'message': 'API key not valid. Please pass a valid API key.', 'status': 'INVALID_ARGUMENT', 'details': [{'@type': 'type.googleapis.com/google.rpc.ErrorInfo', 'reason': 'API_KEY_INVALID', 'domain': 'googleapis.com', 'metadata': {'service': 'generativelanguage.googleapis.com'}}, {'@type': 'type.googleapis.com/google.rpc.LocalizedMessage', 'locale': 'en-US', 'message': 'API key not valid. Please pass a valid API key.'}]}}; 400 INVALID_ARGUMENT. {'error': {'code': 400, 'message': 'API key not valid. Please pass a valid API key.', 'status': 'INVALID_ARGUMENT', 'details': [{'@type': 'type.googleapis.com/google.rpc.ErrorInfo', 'reason': 'API_KEY_INVALID', 'domain': 'googleapis.com', 'metadata': {'service': 'generativelanguage.googleapis.com'}}, {'@type': 'type.googleapis.com/google.rpc.LocalizedMessage', 'locale': 'en-US', 'message': 'API key not valid. Please pass a valid API key.'}]}} |
+| cerebras | gpt-oss-120b | no | 0.66 | 120.12 |  |
+| google | gemini-3.5-flash-lite | yes | ERR | ERR | 400 INVALID_ARGUMENT. {'error': {'code': 400, 'message': 'API key not valid. Please pass a valid API key.', 'status': 'INVALID_ARGUMENT', 'details': [{'@type': 'type.googleapis.com/google.rpc.ErrorInfo', 'reason': 'API_KEY_INVALID', 'domain': 'googleapis.com', 'metadata': {'service': 'generativelanguage.googleapis.com'}}, {'@type': 'type.googleapis.com/google.rpc.LocalizedMessage', 'locale': 'en-US', 'message': 'API key not valid. Please pass a valid API key.'}]}}; 400 INVALID_ARGUMENT. {'error': {'code': 400, 'message': 'API key not valid. Please pass a valid API key.', 'status': 'INVALID_ARGUMENT', 'details': [{'@type': 'type.googleapis.com/google.rpc.ErrorInfo', 'reason': 'API_KEY_INVALID', 'domain': 'googleapis.com', 'metadata': {'service': 'generativelanguage.googleapis.com'}}, {'@type': 'type.googleapis.com/google.rpc.LocalizedMessage', 'locale': 'en-US', 'message': 'API key not valid. Please pass a valid API key.'}]}} |
+| groq | gpt-oss-20b | no | 0.88 | 1.67 |  |
+| openai | gpt-5.4-mini | no | 1.44 | 2.42 |  |
+| groq | gpt-oss-20b | yes | 0.92 | 2.76 |  |
+| openai | gpt-5.4-mini | yes | 1.98 | 3.03 |  |
+| openai | gpt-5.4-nano | no | 1.20 | 2.15 |  |
+| openai | gpt-5.4-nano | yes | 1.71 | 5.58 |  |
+| cerebras | gpt-oss-120b | yes | 59.45 | 0.54 |  |
 
 _* = invalid JSON output, ERR = request failed_

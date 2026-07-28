@@ -20,6 +20,10 @@ MODELS = [
     Model("openai", "gpt-4.1-mini", "gpt-4.1-mini", "OPENAI_API_KEY", structured=True),
     Model("openai", "gpt-4.1-nano", "gpt-4.1-nano", "OPENAI_API_KEY"),
     Model("openai", "gpt-4.1-nano", "gpt-4.1-nano", "OPENAI_API_KEY", structured=True),
+    Model("openai", "gpt-5.4-mini", "gpt-5.4-mini", "OPENAI_API_KEY"),
+    Model("openai", "gpt-5.4-mini", "gpt-5.4-mini", "OPENAI_API_KEY", structured=True),
+    Model("openai", "gpt-5.4-nano", "gpt-5.4-nano", "OPENAI_API_KEY"),
+    Model("openai", "gpt-5.4-nano", "gpt-5.4-nano", "OPENAI_API_KEY", structured=True),
     # Anthropic
     Model("anthropic", "claude-haiku-4-5", "claude-haiku-4-5-20251001", "ANTHROPIC_API_KEY"),
     # Google
@@ -33,14 +37,28 @@ MODELS = [
         "GOOGLE_API_KEY",
         structured=True,
     ),
+    Model("google", "gemini-3.6-flash", "gemini-3.6-flash", "GOOGLE_API_KEY"),
+    Model("google", "gemini-3.6-flash", "gemini-3.6-flash", "GOOGLE_API_KEY", structured=True),
+    Model("google", "gemini-3.5-flash-lite", "gemini-3.5-flash-lite", "GOOGLE_API_KEY"),
+    Model(
+        "google",
+        "gemini-3.5-flash-lite",
+        "gemini-3.5-flash-lite",
+        "GOOGLE_API_KEY",
+        structured=True,
+    ),
     # Groq (OpenAI-compatible)
     Model("groq", "llama-3.3-70b", "llama-3.3-70b-versatile", "GROQ_API_KEY"),
     Model("groq", "llama-3.3-70b", "llama-3.3-70b-versatile", "GROQ_API_KEY", structured=True),
     Model("groq", "llama-3.1-8b", "llama-3.1-8b-instant", "GROQ_API_KEY"),
     Model("groq", "llama-3.1-8b", "llama-3.1-8b-instant", "GROQ_API_KEY", structured=True),
+    Model("groq", "gpt-oss-20b", "openai/gpt-oss-20b", "GROQ_API_KEY"),
+    Model("groq", "gpt-oss-20b", "openai/gpt-oss-20b", "GROQ_API_KEY", structured=True),
     # Cerebras (OpenAI-compatible)
     Model("cerebras", "llama3.1-8b", "llama3.1-8b", "CEREBRAS_API_KEY"),
     Model("cerebras", "llama3.1-8b", "llama3.1-8b", "CEREBRAS_API_KEY", structured=True),
+    Model("cerebras", "gpt-oss-120b", "gpt-oss-120b", "CEREBRAS_API_KEY"),
+    Model("cerebras", "gpt-oss-120b", "gpt-oss-120b", "CEREBRAS_API_KEY", structured=True),
 ]
 
 
