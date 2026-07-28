@@ -35,6 +35,14 @@ NUMERIC EXERCISES: Always extract a number.
 
 TIME: Convert to seconds (1 minute = 60, 6 minutes = 360).
 
+TIMED HOLDS VS REPS: If an exercise is measured by duration (a hold or timed set —
+plank, wall sit, dead hang, "60 second plank"), always use type "timed" with that
+duration, even if you have to invent the number. NEVER use type "numeric" with unit
+"seconds"/"minutes" — "unit" must be a countable quantity (meters, calories, per side),
+never a time unit.
+- "60 second plank" → {"type": "timed", "name": "plank", "duration": 60}
+- "plank" (no duration given) → invent one, still type "timed": {"type": "timed", "name": "plank", "duration": 45}
+
 CONTEXT: Include parenthetical context in names when relevant.
 "1 minute max effort (rowing)" → name: "row", instruction: "max effort"
 

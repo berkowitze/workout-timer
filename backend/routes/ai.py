@@ -8,7 +8,7 @@ from pydantic import ValidationError
 
 from prompts import NAME_SYSTEM_PROMPT, SYSTEM_PROMPT
 from routes.auth import require_auth
-from schemas import WorkoutParsed
+from schemas import ParsedExercise, WorkoutParsed
 from utils import clean_exercise
 
 ai_bp = Blueprint("ai", __name__)
@@ -16,6 +16,21 @@ ai_bp = Blueprint("ai", __name__)
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 MAX_RETRIES = 2
+
+TIME_UNITS = {"second", "seconds", "sec", "secs", "minute", "minutes", "min", "mins", "hour", "hours"}
+
+
+def _check_semantics(exercises: list[ParsedExercise]) -> None:
+    """Catch semantically-invalid output that schema validation can't (e.g. a timed
+    hold mislabeled as numeric reps with a time unit)."""
+    for ex in exercises:
+        if ex.type == "numeric" and (ex.unit or "").strip().lower() in TIME_UNITS:
+            raise ValueError(
+                f"Exercise '{ex.name}' is type 'numeric' with a time unit ('{ex.unit}') — "
+                "time-based exercises must use type 'timed' with a duration instead."
+            )
+        if ex.type == "loop" and ex.exercises:
+            _check_semantics(ex.exercises)
 
 
 @ai_bp.route("/parse-workout", methods=["POST"])
@@ -45,6 +60,7 @@ def parse_workout() -> tuple[Response, int] | Response:
             try:
                 parsed_json = json.loads(raw_response)
                 validated = WorkoutParsed.model_validate(parsed_json)
+                _check_semantics(validated.exercises)
                 exercises = [clean_exercise(ex) for ex in validated.exercises]
                 return jsonify({"exercises": exercises})
             except (json.JSONDecodeError, ValidationError, Exception) as e:
