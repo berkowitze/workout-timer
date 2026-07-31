@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import type { ExerciseWithId } from "../../types/workout";
 import { PRESET_EXERCISES } from "../../types/workout";
 import { v4 as uuidv4 } from "uuid";
@@ -8,6 +8,7 @@ import {
   type ExerciseFormData,
   type ExerciseType,
 } from "./ExerciseTypeSelector";
+import { useCloseOnEscape } from "../../utils/useCloseOnEscape";
 
 interface AddExerciseModalProps {
   isOpen: boolean;
@@ -34,19 +35,7 @@ export function AddExerciseModal({
     instruction: "",
   });
 
-  // Handle Escape key to close modal
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        onClose();
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onClose]);
+  useCloseOnEscape(onClose, isOpen);
 
   if (!isOpen) return null;
 

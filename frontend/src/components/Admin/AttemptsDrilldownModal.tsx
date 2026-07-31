@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { AdminAttempt } from "../../types/admin";
 import { getAdminWorkoutAttempts } from "../../api/client";
 import { formatDuration } from "../../utils/time";
+import { useCloseOnEscape } from "../../utils/useCloseOnEscape";
 
 interface AttemptsDrilldownModalProps {
   workoutId: string;
@@ -33,6 +34,8 @@ export function AttemptsDrilldownModal({
   const [attempts, setAttempts] = useState<AdminAttempt[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  useCloseOnEscape(onClose);
+
   useEffect(() => {
     let cancelled = false;
     getAdminWorkoutAttempts(workoutId)
@@ -51,7 +54,10 @@ export function AttemptsDrilldownModal({
   }, [workoutId]);
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+    <div
+      className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
       <div className="bg-slate-light border border-gray-600 rounded-xl max-w-2xl w-full max-h-[85vh] flex flex-col">
         <div className="flex items-center justify-between p-4 border-b border-gray-600 shrink-0">
           <h3 className="text-lg font-semibold text-white truncate pr-4">{workoutName}</h3>

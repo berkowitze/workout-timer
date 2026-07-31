@@ -8,6 +8,7 @@ import { stashPendingAction } from "../../utils/pendingAction";
 import { flattenExercises } from "../../utils/exercises";
 import { calculateTotalTime } from "../../utils/time";
 import { getAnonymousId } from "../../utils/anonymousId";
+import { useCloseOnEscape } from "../../utils/useCloseOnEscape";
 
 interface WorkoutModeProps {
   exercises: Exercise[];
@@ -126,6 +127,13 @@ export function WorkoutMode({
     stashPendingAction({ type: "save", name: workoutName, exercises });
   };
 
+  const closeSaveModal = () => {
+    setShowSaveModal(false);
+    setNeedsAccount(false);
+  };
+
+  useCloseOnEscape(closeSaveModal, showSaveModal);
+
   return (
     <>
       <WorkoutRunner
@@ -141,17 +149,17 @@ export function WorkoutMode({
 
       {/* Save Modal */}
       {showSaveModal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+        <div
+          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+          onClick={(e) => e.target === e.currentTarget && closeSaveModal()}
+        >
           <div className="bg-slate-light border border-gray-600 rounded-xl max-w-md w-full">
             <div className="flex items-center justify-between p-4 border-b border-gray-600">
               <h3 className="text-lg font-semibold text-white">
                 {needsAccount ? "Create a free account" : isSaved ? "Workout Saved" : "Save Workout"}
               </h3>
               <button
-                onClick={() => {
-                  setShowSaveModal(false);
-                  setNeedsAccount(false);
-                }}
+                onClick={closeSaveModal}
                 className="text-gray-500 hover:text-white transition-colors"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

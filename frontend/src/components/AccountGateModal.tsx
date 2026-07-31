@@ -1,4 +1,5 @@
 import { AuthForm } from "./AuthForm";
+import { useCloseOnEscape } from "../utils/useCloseOnEscape";
 
 interface AccountGateModalProps {
   message: string;
@@ -13,8 +14,13 @@ export function AccountGateModal({
   onClose,
   onBeforeGoogleRedirect,
 }: AccountGateModalProps) {
+  useCloseOnEscape(onClose);
+
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+    <div
+      className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
       <div className="bg-slate-light border border-gray-600 rounded-xl max-w-sm w-full">
         <div className="flex items-center justify-between p-4 border-b border-gray-600">
           <h3 className="text-lg font-semibold text-white">Create a free account</h3>
