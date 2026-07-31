@@ -1,5 +1,5 @@
 import { useCloseOnEscape } from "../../utils/useCloseOnEscape";
-import { getYoutubeEmbedUrl } from "../../utils/youtube";
+import { getYoutubeEmbed } from "../../utils/youtube";
 
 interface ExerciseInfoModalProps {
   name: string;
@@ -10,7 +10,7 @@ interface ExerciseInfoModalProps {
 
 export function ExerciseInfoModal({ name, description, videoUrl, onClose }: ExerciseInfoModalProps) {
   useCloseOnEscape(onClose);
-  const embedUrl = videoUrl ? getYoutubeEmbedUrl(videoUrl) : null;
+  const embed = videoUrl ? getYoutubeEmbed(videoUrl) : null;
 
   return (
     <div
@@ -34,10 +34,17 @@ export function ExerciseInfoModal({ name, description, videoUrl, onClose }: Exer
 
         <div className="p-4 space-y-3">
           {description && <p className="text-gray-300 text-sm">{description}</p>}
-          {embedUrl && (
-            <div className="aspect-video rounded-lg overflow-hidden bg-black">
+          {embed && (
+            <div
+              className="mx-auto rounded-lg overflow-hidden bg-black"
+              style={
+                embed.isShort
+                  ? { aspectRatio: "9 / 16", height: "min(65vh, 560px)" }
+                  : { aspectRatio: "16 / 9", width: "100%" }
+              }
+            >
               <iframe
-                src={embedUrl}
+                src={embed.embedUrl}
                 title={name}
                 className="w-full h-full"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -45,9 +52,7 @@ export function ExerciseInfoModal({ name, description, videoUrl, onClose }: Exer
               />
             </div>
           )}
-          {!description && !embedUrl && (
-            <p className="text-gray-500 text-sm">No details yet.</p>
-          )}
+          {!description && !embed && <p className="text-gray-500 text-sm">No details yet.</p>}
         </div>
       </div>
     </div>
