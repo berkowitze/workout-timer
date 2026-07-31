@@ -13,11 +13,14 @@ from models import Base
 
 load_dotenv()
 
-# Serve frontend static files in production
+# Serve frontend static files in production. static_folder=None disables
+# Flask's own auto-registered static route — it would otherwise claim
+# "/<path:path>" itself (since static_url_path="") and 404 directly on any
+# non-root URL, bypassing the SPA-fallback catch-all below entirely.
 FRONTEND_DIST = Path(__file__).parent.parent / "frontend" / "dist"
 static_folder = str(FRONTEND_DIST) if FRONTEND_DIST.exists() else None
 
-app = Flask(__name__, static_folder=static_folder, static_url_path="")
+app = Flask(__name__, static_folder=None)
 app.secret_key = os.getenv("JWT_SECRET_KEY", "dev-secret-change-in-production")
 CORS(app)
 
@@ -71,13 +74,13 @@ def health() -> dict[str, Any]:
 @app.route("/", defaults={"path": ""})
 @app.route("/<path:path>")
 def serve_frontend(path: str) -> Any:
-    if app.static_folder is None:
+    if static_folder is None:
         return {"error": "Frontend not built"}, 404
     # Serve the file if it exists, otherwise serve index.html for SPA routing
-    file_path = Path(app.static_folder) / path
+    file_path = Path(static_folder) / path
     if path and file_path.exists():
-        return send_from_directory(app.static_folder, path)
-    return send_from_directory(app.static_folder, "index.html")
+        return send_from_directory(static_folder, path)
+    return send_from_directory(static_folder, "index.html")
 
 
 if __name__ == "__main__":
