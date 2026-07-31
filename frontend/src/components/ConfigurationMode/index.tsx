@@ -1,33 +1,36 @@
-import { useState, useMemo, useCallback, useRef } from "react";
-import { v4 as uuidv4 } from "uuid";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import type { Exercise, ExerciseWithId, Workout } from "../../types/workout";
 import { parseWorkout, generateWorkoutName, saveWorkout } from "../../api/client";
+import { addIdsToExercises } from "../../utils/exercises";
+import { calculateTotalTime, formatDuration } from "../../utils/time";
+import { type PendingAction, stashPendingAction } from "../../utils/pendingAction";
 import { WorkoutParser } from "./WorkoutParser";
 import { ExerciseList } from "./ExerciseList";
 import { ExerciseListView } from "./ExerciseListView";
 import { WorkoutSelector } from "./WorkoutSelector";
 import { AddExerciseModal } from "./AddExerciseModal";
+import { AccountGateModal } from "../AccountGateModal";
+import { ShareLinkBox } from "../ShareLinkBox";
 
 interface ConfigurationModeProps {
   onStartWorkout: (exercises: Exercise[]) => void;
   initialExercises?: Exercise[];
+  initialWorkout?: { name: string; exercises: Exercise[] };
+  isAuthenticated: boolean;
+  autoResumeAction?: PendingAction;
+  onAutoResumeActionConsumed?: () => void;
+  onAuthenticated: (token: string) => void;
+  onRequestLogin: () => void;
+  onLogout: () => void;
 }
 
-function addIdsToExercises(exercises: Exercise[]): ExerciseWithId[] {
-  return exercises.map((exercise) => {
-    if (exercise.type === "loop") {
-      return {
-        ...exercise,
-        id: uuidv4(),
-        exercises: addIdsToExercises(exercise.exercises),
-      };
-    }
-    return {
-      ...exercise,
-      id: uuidv4(),
-    };
-  }) as ExerciseWithId[];
-}
+type GateReason = { kind: "parse"; text: string } | { kind: "save" } | { kind: "generateName" };
+
+const GATE_MESSAGES: Record<GateReason["kind"], string> = {
+  parse: "Turning text into a workout uses AI, so it takes a free account. Sign up or log in below and we'll pick up right where you left off.",
+  save: "Saving gets you a shareable link, and that takes a free account. Sign up or log in below and we'll save it right after.",
+  generateName: "Generating a name uses AI, so it takes a free account. Sign up or log in below and we'll pick up right where you left off.",
+};
 
 function omit<T, K extends keyof T>(obj: T, ...keys: K[]): Omit<T, K> {
   return Object.fromEntries(
@@ -49,46 +52,28 @@ function removeIdsFromExercises(exercises: ExerciseWithId[]): Exercise[] {
   }) as Exercise[];
 }
 
-function calculateTotalTime(exercises: ExerciseWithId[]): number | null {
-  let total = 0;
-  let allTimed = true;
-
-  for (const ex of exercises) {
-    if (ex.type === "timed" || ex.type === "rest") {
-      total += ex.duration;
-    } else if (ex.type === "loop") {
-      const loopTime = calculateTotalTime(ex.exercises);
-      if (loopTime === null) {
-        allTimed = false;
-      } else {
-        total += loopTime * ex.rounds;
-      }
-    } else {
-      allTimed = false;
-    }
-  }
-
-  return allTimed && exercises.length > 0 ? total : null;
-}
-
-function formatDuration(seconds: number): string {
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  if (mins === 0) return `${secs}s`;
-  if (secs === 0) return `${mins}m`;
-  return `${mins}m ${secs}s`;
-}
-
-export function ConfigurationMode({ onStartWorkout, initialExercises }: ConfigurationModeProps) {
-  const [exercises, setExercises] = useState<ExerciseWithId[]>(() =>
-    initialExercises ? addIdsToExercises(initialExercises) : []
-  );
+export function ConfigurationMode({
+  onStartWorkout,
+  initialExercises,
+  initialWorkout,
+  isAuthenticated,
+  autoResumeAction,
+  onAutoResumeActionConsumed,
+  onAuthenticated,
+  onRequestLogin,
+  onLogout,
+}: ConfigurationModeProps) {
+  const [exercises, setExercises] = useState<ExerciseWithId[]>(() => {
+    const source = initialWorkout?.exercises ?? initialExercises;
+    return source ? addIdsToExercises(source) : [];
+  });
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [isParsing, setIsParsing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isGeneratingName, setIsGeneratingName] = useState(false);
-  const [workoutName, setWorkoutName] = useState("");
+  const [workoutName, setWorkoutName] = useState(initialWorkout?.name ?? "");
   const [savedWorkoutId, setSavedWorkoutId] = useState<string | null>(null);
+  const [gate, setGate] = useState<GateReason | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [modalKey, setModalKey] = useState(0);
   const [addToLoopId, setAddToLoopId] = useState<string | null>(null);
@@ -111,7 +96,7 @@ export function ConfigurationMode({ onStartWorkout, initialExercises }: Configur
     });
   }, []);
 
-  const handleParse = async (text: string) => {
+  const runParse = useCallback(async (text: string) => {
     setIsParsing(true);
     setError(null);
     try {
@@ -144,7 +129,96 @@ export function ConfigurationMode({ onStartWorkout, initialExercises }: Configur
     } finally {
       setIsParsing(false);
     }
+  }, []);
+
+  const runGenerateName = useCallback(async (exs: ExerciseWithId[]) => {
+    if (exs.length === 0) return;
+    setIsGeneratingName(true);
+    try {
+      const name = await generateWorkoutName(removeIdsFromExercises(exs));
+      setWorkoutName(name);
+    } catch (err) {
+      console.error("Failed to generate name:", err);
+    } finally {
+      setIsGeneratingName(false);
+    }
+  }, []);
+
+  const runSave = useCallback(async (name: string, exs: ExerciseWithId[]) => {
+    if (!name.trim() || exs.length === 0) {
+      setError("Please enter a workout name and add at least one exercise.");
+      return;
+    }
+    setIsSaving(true);
+    setError(null);
+    try {
+      const saved = await saveWorkout(name, removeIdsFromExercises(exs));
+      setSavedWorkoutId(saved.id);
+      setHasChanges(false);
+    } catch (err) {
+      setError("Failed to save workout. Please try again.");
+      console.error(err);
+    } finally {
+      setIsSaving(false);
+    }
+  }, []);
+
+  const handleParse = async (text: string) => {
+    if (!isAuthenticated) {
+      // Don't navigate away or lose what they typed — just gate on account
+      // creation. WorkoutParser keeps the text in its own input state.
+      setGate({ kind: "parse", text });
+      return;
+    }
+    await runParse(text);
   };
+
+  const handleGateAuthenticated = (token: string) => {
+    onAuthenticated(token);
+    const reason = gate;
+    setGate(null);
+    if (!reason) return;
+    if (reason.kind === "parse") {
+      runParse(reason.text);
+    } else if (reason.kind === "save") {
+      runSave(workoutName, exercises);
+    } else if (reason.kind === "generateName") {
+      runGenerateName(exercises);
+    }
+  };
+
+  const handleBeforeGoogleRedirect = () => {
+    if (!gate) return;
+    const action: PendingAction =
+      gate.kind === "parse"
+        ? { type: "parse", text: gate.text }
+        : {
+            type: gate.kind,
+            name: workoutName,
+            exercises: removeIdsFromExercises(exercises),
+          };
+    stashPendingAction(action);
+  };
+
+  // Resumes an action that was interrupted by a full-page Google OAuth
+  // redirect (React state doesn't survive that; sessionStorage does).
+  useEffect(() => {
+    if (!autoResumeAction) return;
+    if (autoResumeAction.type === "parse") {
+      runParse(autoResumeAction.text);
+    } else {
+      const withIds = addIdsToExercises(autoResumeAction.exercises);
+      setExercises(withIds);
+      setWorkoutName(autoResumeAction.name);
+      if (autoResumeAction.type === "save") {
+        runSave(autoResumeAction.name, withIds);
+      } else {
+        runGenerateName(withIds);
+      }
+    }
+    onAutoResumeActionConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoResumeAction]);
 
   const handleLoadWorkout = (workout: Workout) => {
     const withIds = addIdsToExercises(workout.exercises);
@@ -207,34 +281,19 @@ export function ConfigurationMode({ onStartWorkout, initialExercises }: Configur
 
   const handleGenerateName = async () => {
     if (exercises.length === 0) return;
-    setIsGeneratingName(true);
-    try {
-      const name = await generateWorkoutName(removeIdsFromExercises(exercises));
-      setWorkoutName(name);
-    } catch (err) {
-      console.error("Failed to generate name:", err);
-    } finally {
-      setIsGeneratingName(false);
+    if (!isAuthenticated) {
+      setGate({ kind: "generateName" });
+      return;
     }
+    await runGenerateName(exercises);
   };
 
   const handleSave = async () => {
-    if (!workoutName.trim() || exercises.length === 0) {
-      setError("Please enter a workout name and add at least one exercise.");
+    if (!isAuthenticated) {
+      setGate({ kind: "save" });
       return;
     }
-    setIsSaving(true);
-    setError(null);
-    try {
-      const saved = await saveWorkout(workoutName, removeIdsFromExercises(exercises));
-      setSavedWorkoutId(saved.id);
-      setHasChanges(false);
-    } catch (err) {
-      setError("Failed to save workout. Please try again.");
-      console.error(err);
-    } finally {
-      setIsSaving(false);
-    }
+    await runSave(workoutName, exercises);
   };
 
   const handleStart = () => {
@@ -248,6 +307,23 @@ export function ConfigurationMode({ onStartWorkout, initialExercises }: Configur
   return (
     <div className="min-h-screen bg-slate">
       <div className="max-w-[1400px] mx-auto px-4 py-8">
+        <div className="flex justify-end">
+          {isAuthenticated ? (
+            <button
+              onClick={onLogout}
+              className="text-sm text-gray-400 hover:text-gray-200 transition-colors"
+            >
+              Log Out
+            </button>
+          ) : (
+            <button
+              onClick={onRequestLogin}
+              className="text-sm text-gray-400 hover:text-gray-200 transition-colors"
+            >
+              Log In
+            </button>
+          )}
+        </div>
         <header className="text-center mb-8">
           <h1 className="text-4xl font-bold text-white mb-2">Workout Timer</h1>
           <p className="text-gray-400">Create, customize, and crush your workouts</p>
@@ -472,6 +548,8 @@ export function ConfigurationMode({ onStartWorkout, initialExercises }: Configur
                   )}
                 </button>
 
+                {savedWorkoutId && !hasChanges && <ShareLinkBox workoutId={savedWorkoutId} />}
+
                 <button
                   onClick={handleStart}
                   className="w-full py-3 px-4 bg-ocean hover:bg-ocean-dark text-white 
@@ -513,6 +591,15 @@ export function ConfigurationMode({ onStartWorkout, initialExercises }: Configur
         }}
         onAdd={handleAddExercise}
       />
+
+      {gate && (
+        <AccountGateModal
+          message={GATE_MESSAGES[gate.kind]}
+          onAuthenticated={handleGateAuthenticated}
+          onBeforeGoogleRedirect={handleBeforeGoogleRedirect}
+          onClose={() => setGate(null)}
+        />
+      )}
     </div>
   );
 }

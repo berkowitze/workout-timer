@@ -21,7 +21,6 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 @workouts_bp.route("/workouts", methods=["GET"])
-@require_auth
 def list_workouts() -> Response:
     db = SessionLocal()
     try:
@@ -60,7 +59,6 @@ def create_workout() -> tuple[Response, int]:
 
 
 @workouts_bp.route("/workouts/<workout_id>", methods=["GET"])
-@require_auth
 def get_workout(workout_id: str) -> tuple[Response, int] | Response:
     db = SessionLocal()
     try:

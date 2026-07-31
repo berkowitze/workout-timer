@@ -8,6 +8,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import confetti from "canvas-confetti";
 import type { Exercise, FlattenedExercise } from "../../types/workout";
+import { calculateTotalTime, formatDuration } from "../../utils/time";
 import { TimerCircle } from "./TimerCircle";
 import { CurrentExercise, NextExercise } from "./ExerciseDisplay";
 
@@ -115,6 +116,7 @@ export function WorkoutRunner({
   const beepsPlayed = useRef<Set<number>>(new Set());
 
   const flat = useMemo(() => flattenExercises(exercises), [exercises]);
+  const totalTime = useMemo(() => calculateTotalTime(exercises), [exercises]);
   const current = flat[currentIndex] ?? null;
   const next = flat[currentIndex + 1] ?? null;
 
@@ -302,6 +304,12 @@ export function WorkoutRunner({
       </header>
 
       <main className="flex-1 flex flex-col items-center justify-center px-4 py-8 gap-6">
+        {state === "idle" && totalTime !== null && (
+          <span className="text-sm text-gray-400 bg-gray-700/50 px-2 py-0.5 rounded">
+            {formatDuration(totalTime)} total
+          </span>
+        )}
+
         {(state === "countdown" || state === "active") && current && (
           <CurrentExercise
             current={current}
