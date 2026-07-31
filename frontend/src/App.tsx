@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Exercise, Workout } from "./types/workout";
 import { AuthScreen } from "./components/AuthScreen";
 import { ConfigurationMode } from "./components/ConfigurationMode";
@@ -9,6 +9,16 @@ import { logout } from "./api/client";
 import { type PendingAction, consumePendingAction } from "./utils/pendingAction";
 
 type AppMode = "config" | "workout" | "auth" | "share" | "admin";
+
+// Tagged onto every history entry we create, so a popstate event can tell us
+// which screen to show. `seq` counts how many entries *we've* pushed this
+// session — it's how a Back button can tell "there's a previous in-app
+// screen" (safe to call history.back()) from "this was the very first thing
+// loaded, e.g. a bookmarked /admin link" (nothing to go back to in-app).
+interface NavState {
+  mode: AppMode;
+  seq: number;
+}
 
 function parseSharedWorkoutId(): string | null {
   const match = window.location.pathname.match(/^\/w\/([^/]+)\/?$/);
@@ -63,10 +73,87 @@ function App() {
     oauthState.pendingAction ?? undefined
   );
 
+  const navSeqRef = useRef(0);
+
+  // Tag the entry the browser already created for this page load, so it
+  // looks like every other entry we push from here on.
+  useEffect(() => {
+    const state: NavState = { mode, seq: 0 };
+    window.history.replaceState(state, "", window.location.pathname);
+    // Deliberately runs once on mount to tag the initial entry — not meant
+    // to re-tag on every subsequent mode change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Mirrors the browser's Back/Forward buttons into `mode`. Every screen
+  // change below goes through `navigate`, which pushes a NavState-tagged
+  // entry, so popping back to one here is enough to restore that screen —
+  // no need to separately track "where did this screen come from".
+  useEffect(() => {
+    const onPopState = (event: PopStateEvent) => {
+      const state = event.state as NavState | null;
+      if (state && typeof state.mode === "string") {
+        navSeqRef.current = state.seq ?? 0;
+        setMode(state.mode);
+        return;
+      }
+      // No tagged state — the user navigated somewhere we didn't push
+      // (e.g. edited the URL bar). Derive the screen the same way initial
+      // load does.
+      navSeqRef.current = 0;
+      if (parseSharedWorkoutId()) {
+        setMode("share");
+      } else if (isAdminPath() && isAuthenticated) {
+        setMode("admin");
+      } else {
+        setMode("config");
+      }
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [isAuthenticated]);
+
+  const navigate = useCallback(
+    (nextMode: AppMode, path?: string, opts?: { replace?: boolean }) => {
+      const url = path ?? window.location.pathname;
+      if (opts?.replace) {
+        const state: NavState = { mode: nextMode, seq: navSeqRef.current };
+        window.history.replaceState(state, "", url);
+      } else {
+        const seq = navSeqRef.current + 1;
+        navSeqRef.current = seq;
+        const state: NavState = { mode: nextMode, seq };
+        window.history.pushState(state, "", url);
+      }
+      setMode(nextMode);
+    },
+    []
+  );
+
+  // For "Back"-labeled buttons: prefer a real history pop (so it lines up
+  // with the browser's own Back button), but fall back to a fresh push when
+  // there's no previous in-app entry to pop to — e.g. a bookmarked /admin
+  // link, where history.back() would leave the app entirely.
+  const goBack = useCallback(
+    (fallbackMode: AppMode, fallbackPath: string) => {
+      if (navSeqRef.current > 0) {
+        window.history.back();
+      } else {
+        navigate(fallbackMode, fallbackPath);
+      }
+    },
+    [navigate]
+  );
+
   const handleAuthenticated = (token: string) => {
     sessionStorage.setItem("auth_token", token);
     setIsAuthenticated(true);
-    setMode("config");
+    // This also fires from the inline account-gate modal (save/parse while
+    // a guest), which happens without ever leaving config/workout mode —
+    // only touch navigation when a full-screen login is what's on-screen.
+    if (mode === "auth") {
+      navigate("config", "/", { replace: true });
+    }
   };
 
   const handleLogout = () => {
@@ -76,18 +163,15 @@ function App() {
   };
 
   const handleGoToAdmin = () => {
-    window.history.pushState({}, "", "/admin");
-    setMode("admin");
+    navigate("admin", "/admin");
   };
 
   const handleLeaveAdmin = () => {
-    window.history.pushState({}, "", "/");
-    setMode("config");
+    goBack("config", "/");
   };
 
   const handleAdminUnauthorized = () => {
-    window.history.replaceState({}, "", "/");
-    setMode("config");
+    navigate("config", "/", { replace: true });
   };
 
   const handleConfirmedAdmin = () => {
@@ -99,11 +183,13 @@ function App() {
     setWorkoutExercises(exercises);
     setStoredExercises(exercises);
     setSavedWorkoutId(null);
-    setMode("workout");
+    navigate("workout");
   };
 
   const handleBackToConfig = () => {
-    setMode("config");
+    // Goes back to whatever screen preceded the workout — config or share,
+    // whichever it actually was — since that's just the previous entry.
+    goBack("config", "/");
     // Keep storedExercises so they persist in config mode
   };
 
@@ -111,13 +197,12 @@ function App() {
     setWorkoutExercises(workout.exercises);
     setStoredExercises(workout.exercises);
     setSavedWorkoutId(workout.id);
-    setMode("workout");
+    navigate("workout");
   };
 
   const handleRemixFromShare = (workout: Workout) => {
     setInitialWorkout({ name: workout.name, exercises: workout.exercises });
-    window.history.pushState({}, "", "/");
-    setMode("config");
+    navigate("config", "/");
   };
 
   if (mode === "auth") {
@@ -165,7 +250,7 @@ function App() {
       autoResumeAction={autoResumeAction}
       onAutoResumeActionConsumed={() => setAutoResumeAction(undefined)}
       onAuthenticated={handleAuthenticated}
-      onRequestLogin={() => setMode("auth")}
+      onRequestLogin={() => navigate("auth")}
       onLogout={handleLogout}
       isAdmin={isAdmin}
       onGoToAdmin={handleGoToAdmin}
