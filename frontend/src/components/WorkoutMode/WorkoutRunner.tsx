@@ -7,8 +7,9 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import confetti from "canvas-confetti";
-import type { Exercise, FlattenedExercise } from "../../types/workout";
+import type { Exercise } from "../../types/workout";
 import { calculateTotalTime, formatDuration } from "../../utils/time";
+import { flattenExercises } from "../../utils/exercises";
 import { TimerCircle } from "./TimerCircle";
 import { CurrentExercise, NextExercise } from "./ExerciseDisplay";
 
@@ -22,22 +23,6 @@ const HIGH_BEEP_FREQ = 880;
 // -----------------------------
 // Utilities
 // -----------------------------
-function flattenExercises(
-  exercises: Exercise[],
-  loopInfo?: { round: number; totalRounds: number }
-): FlattenedExercise[] {
-  return exercises.flatMap((exercise) => {
-    if (exercise.type === "loop") {
-      return Array.from({ length: exercise.rounds }, (_, i) =>
-        flattenExercises(exercise.exercises, {
-          round: i + 1,
-          totalRounds: exercise.rounds,
-        })
-      ).flat();
-    }
-    return [{ exercise, loopInfo }];
-  });
-}
 
 // Web Audio beep helper
 function createBeep(frequency: number, duration: number, volume = 0.3) {
@@ -94,12 +79,18 @@ export function WorkoutRunner({
   onBack,
   isSaved,
   onSave,
+  onStart,
+  onProgress,
+  onWorkoutComplete,
 }: {
   exercises: Exercise[];
   onComplete: () => void;
   onBack: () => void;
   isSaved: boolean;
   onSave: () => void;
+  onStart?: () => void;
+  onProgress?: (exercisesCompleted: number) => void;
+  onWorkoutComplete?: (durationSeconds: number) => void;
 }) {
   const [state, setState] = useState<"idle" | "countdown" | "active" | "completed">("idle");
   const [isPaused, setIsPaused] = useState(false);
@@ -111,6 +102,8 @@ export function WorkoutRunner({
 
   const [, setTick] = useState(0);
   const raf = useRef<number | null>(null);
+  const currentSectionRef = useRef<HTMLDivElement>(null);
+  const workoutStartTime = useRef<number | null>(null);
 
   const completionTriggered = useRef(false);
   const beepsPlayed = useRef<Set<number>>(new Set());
@@ -148,6 +141,15 @@ export function WorkoutRunner({
     }, 250);
   }, []);
 
+  const finishWorkout = useCallback(() => {
+    setState("completed");
+    fireConfetti();
+    if (workoutStartTime.current !== null) {
+      const durationSeconds = Math.round((Date.now() - workoutStartTime.current) / 1000);
+      onWorkoutComplete?.(durationSeconds);
+    }
+  }, [fireConfetti, onWorkoutComplete]);
+
   // Animation loop
   useEffect(() => {
     if (state === "idle" || state === "completed" || isPaused) return;
@@ -181,8 +183,7 @@ export function WorkoutRunner({
           completionTriggered.current = false;
         } else if (state === "active" && isTimed) {
           if (currentIndex + 1 >= flat.length) {
-            setState("completed");
-            fireConfetti();
+            finishWorkout();
           } else {
             setCurrentIndex((i) => i + 1);
             setPhaseStartTime(Date.now());
@@ -202,7 +203,7 @@ export function WorkoutRunner({
     return () => {
       if (raf.current) cancelAnimationFrame(raf.current);
     };
-  }, [state, isPaused, getRemaining, currentIndex, flat.length, fireConfetti, isTimed]);
+  }, [state, isPaused, getRemaining, currentIndex, flat.length, finishWorkout, isTimed]);
 
   // Reset triggers on change
   useEffect(() => {
@@ -210,20 +211,40 @@ export function WorkoutRunner({
     beepsPlayed.current.clear();
   }, [currentIndex, state]);
 
+  // On short/mobile viewports the header + current exercise + circle + next
+  // preview don't all fit on screen at once. Keep "Current" pinned to the
+  // top instead of leaving the page scrolled to the header by default.
+  useEffect(() => {
+    if (state === "countdown" || state === "active") {
+      currentSectionRef.current?.scrollIntoView({ block: "start", behavior: "auto" });
+    }
+  }, [state, currentIndex]);
+
+  // Fire onProgress whenever the current exercise advances, including the
+  // initial mount at index 0 — harmless before an attempt exists, since the
+  // caller has no attempt id to update yet.
+  useEffect(() => {
+    onProgress?.(currentIndex);
+  }, [currentIndex, onProgress]);
+
   // Circle click handler
   const handleClick = useCallback(() => {
     if (state === "idle") {
-      setState("countdown");
+      // Rep-based exercises don't need a "get ready" countdown — you set your
+      // own pace before the first rep, unlike a timed exercise that starts ticking.
+      const startsWithReps = current?.exercise.type === "numeric";
+      setState(startsWithReps ? "active" : "countdown");
       setPhaseStartTime(Date.now());
       setPausedAccum(0);
       beepsPlayed.current.clear();
+      workoutStartTime.current = Date.now();
+      onStart?.();
       return;
     }
 
     if (state === "active" && current?.exercise.type === "numeric") {
       if (currentIndex + 1 >= flat.length) {
-        setState("completed");
-        fireConfetti();
+        finishWorkout();
       } else {
         setCurrentIndex((i) => i + 1);
         setPhaseStartTime(Date.now());
@@ -245,7 +266,17 @@ export function WorkoutRunner({
     }
 
     if (state === "completed") onComplete();
-  }, [state, current, currentIndex, flat.length, pauseStart, isPaused, onComplete, fireConfetti]);
+  }, [
+    state,
+    current,
+    currentIndex,
+    flat.length,
+    pauseStart,
+    isPaused,
+    onComplete,
+    onStart,
+    finishWorkout,
+  ]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -303,7 +334,7 @@ export function WorkoutRunner({
         <div className="w-16" />
       </header>
 
-      <main className="flex-1 flex flex-col items-center justify-center px-4 py-8 gap-6">
+      <main className="flex-1 flex flex-col items-center justify-center px-4 py-6 sm:py-8 gap-4 sm:gap-6">
         {state === "idle" && totalTime !== null && (
           <span className="text-sm text-gray-400 bg-gray-700/50 px-2 py-0.5 rounded">
             {formatDuration(totalTime)} total
@@ -315,6 +346,7 @@ export function WorkoutRunner({
             current={current}
             isNumeric={current.exercise.type === "numeric"}
             isCountdown={state === "countdown"}
+            sectionRef={currentSectionRef}
           />
         )}
 

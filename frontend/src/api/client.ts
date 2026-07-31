@@ -67,3 +67,31 @@ export async function register(email: string, password: string): Promise<{ token
 export function logout(): void {
   sessionStorage.removeItem("auth_token");
 }
+
+interface StartAttemptPayload {
+  total_exercises: number;
+  numeric_exercise_count: number;
+  expected_duration_seconds?: number | null;
+  anonymous_id?: string;
+}
+
+export async function startAttempt(
+  workoutId: string,
+  payload: StartAttemptPayload
+): Promise<{ id: string }> {
+  const response = await api.post<{ id: string }>(`/workouts/${workoutId}/attempts`, payload);
+  return response.data;
+}
+
+interface UpdateAttemptPayload {
+  exercises_completed?: number;
+  status?: "started" | "completed";
+  duration_seconds?: number;
+}
+
+export async function updateAttempt(
+  attemptId: string,
+  payload: UpdateAttemptPayload
+): Promise<void> {
+  await api.patch(`/attempts/${attemptId}`, payload);
+}

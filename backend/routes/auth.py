@@ -40,6 +40,21 @@ def _get_db() -> Any:
     return SessionLocal()
 
 
+def get_current_user_id() -> str | None:
+    """Best-effort caller identity for optionally-authenticated routes.
+
+    Unlike require_auth, this never rejects — missing or invalid tokens just
+    resolve to None so the caller can fall back to anonymous tracking.
+    """
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:]
+        payload = _decode_jwt(token)
+        if payload:
+            return payload.get("sub")  # type: ignore[no-any-return]
+    return None
+
+
 def require_auth(f: Callable[..., Any]) -> Callable[..., Any]:
     @wraps(f)
     def decorated(*args: Any, **kwargs: Any) -> Any:

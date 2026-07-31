@@ -1,10 +1,13 @@
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { Exercise } from "../../types/workout";
 import { WorkoutRunner } from "./WorkoutRunner";
-import { generateWorkoutName, saveWorkout } from "../../api/client";
+import { generateWorkoutName, saveWorkout, startAttempt, updateAttempt } from "../../api/client";
 import { ShareLinkBox } from "../ShareLinkBox";
 import { AuthForm } from "../AuthForm";
 import { stashPendingAction } from "../../utils/pendingAction";
+import { flattenExercises } from "../../utils/exercises";
+import { calculateTotalTime } from "../../utils/time";
+import { getAnonymousId } from "../../utils/anonymousId";
 
 interface WorkoutModeProps {
   exercises: Exercise[];
@@ -28,6 +31,50 @@ export function WorkoutMode({
   const [workoutName, setWorkoutName] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isGeneratingName, setIsGeneratingName] = useState(false);
+  const [attemptId, setAttemptId] = useState<string | null>(null);
+
+  const flatExercises = useMemo(() => flattenExercises(exercises), [exercises]);
+  const totalExercises = flatExercises.length;
+  const numericExerciseCount = flatExercises.filter(
+    (item) => item.exercise.type === "numeric"
+  ).length;
+  const expectedDurationSeconds = useMemo(() => calculateTotalTime(exercises), [exercises]);
+
+  // Attempt tracking is analytics only: every call is fire-and-forget so a
+  // failed or slow tracking request is completely invisible to the person
+  // working out. An ad-hoc run straight from the editor (no savedId) has no
+  // workout_id to attach an attempt to, so it's skipped entirely.
+  const handleWorkoutStart = useCallback(() => {
+    if (!savedId) return;
+    startAttempt(savedId, {
+      total_exercises: totalExercises,
+      numeric_exercise_count: numericExerciseCount,
+      expected_duration_seconds: expectedDurationSeconds,
+      ...(isAuthenticated ? {} : { anonymous_id: getAnonymousId() }),
+    })
+      .then((res) => setAttemptId(res.id))
+      .catch(() => {});
+  }, [savedId, totalExercises, numericExerciseCount, expectedDurationSeconds, isAuthenticated]);
+
+  const handleWorkoutProgress = useCallback(
+    (exercisesCompleted: number) => {
+      if (!attemptId) return;
+      updateAttempt(attemptId, { exercises_completed: exercisesCompleted }).catch(() => {});
+    },
+    [attemptId]
+  );
+
+  const handleWorkoutComplete = useCallback(
+    (durationSeconds: number) => {
+      if (!attemptId) return;
+      updateAttempt(attemptId, {
+        status: "completed",
+        duration_seconds: durationSeconds,
+        exercises_completed: totalExercises,
+      }).catch(() => {});
+    },
+    [attemptId, totalExercises]
+  );
 
   const handleSaveClick = async () => {
     setShowSaveModal(true);
@@ -87,6 +134,9 @@ export function WorkoutMode({
         onBack={onBack}
         isSaved={isSaved}
         onSave={handleSaveClick}
+        onStart={handleWorkoutStart}
+        onProgress={handleWorkoutProgress}
+        onWorkoutComplete={handleWorkoutComplete}
       />
 
       {/* Save Modal */}

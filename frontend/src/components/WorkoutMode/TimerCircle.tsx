@@ -82,7 +82,10 @@ export function TimerCircle({
 
   return (
     <div className={`relative ${animationClass}`} onClick={onClick}>
-      <svg width="320" height="320" viewBox="0 0 320 320" className="transform -rotate-90">
+      <svg
+        viewBox="0 0 320 320"
+        className="w-56 h-56 sm:w-72 sm:h-72 md:w-80 md:h-80 transform -rotate-90"
+      >
         {/* Background circle */}
         <circle
           cx="160"
@@ -123,7 +126,7 @@ export function TimerCircle({
 
       {/* Inner filled circle */}
       <div
-        className={`absolute inset-8 rounded-full flex flex-col items-center justify-center`}
+        className={`absolute inset-6 sm:inset-7 md:inset-8 rounded-full flex flex-col items-center justify-center`}
         style={{
           backgroundColor: circleColor,
           boxShadow: `0 0 60px ${circleColor}40`,
@@ -133,15 +136,15 @@ export function TimerCircle({
         <span
           className={`font-bold text-white ${
             typeof displayValue === "string" && displayValue.length > 5
-              ? "text-4xl"
+              ? "text-3xl sm:text-4xl"
               : typeof displayValue === "string" && displayValue.length > 4
-                ? "text-5xl"
-                : "text-7xl"
+                ? "text-4xl sm:text-5xl"
+                : "text-5xl sm:text-6xl md:text-7xl"
           }`}
         >
           {displayValue}
         </span>
-        {subtext && <span className="text-white/80 text-lg mt-1">{subtext}</span>}
+        {subtext && <span className="text-white/80 text-base sm:text-lg mt-1">{subtext}</span>}
         {isPaused && <span className="text-white/60 text-sm mt-2">PAUSED - Click to resume</span>}
       </div>
     </div>

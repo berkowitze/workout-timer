@@ -48,8 +48,11 @@ def init_db() -> None:
 
 # Import and register routes (must be after app/db setup to avoid circular imports)
 from routes.ai import ai_bp  # noqa: E402
+from routes.attempts import attempts_bp, limiter  # noqa: E402
 from routes.auth import auth_bp, oauth  # noqa: E402
 from routes.workouts import workouts_bp  # noqa: E402
+
+limiter.init_app(app)
 
 oauth.init_app(app)
 oauth.register(
@@ -63,6 +66,7 @@ oauth.register(
 app.register_blueprint(auth_bp, url_prefix="/api")
 app.register_blueprint(workouts_bp, url_prefix="/api")
 app.register_blueprint(ai_bp, url_prefix="/api")
+app.register_blueprint(attempts_bp, url_prefix="/api")
 
 
 @app.route("/api/health")
