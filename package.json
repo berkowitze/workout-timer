@@ -1,5 +1,5 @@
 {
-  "name": "workout-timer",
+  "name": "countdown",
   "private": true,
   "scripts": {
     "build": "cd frontend && npm ci && npm run build"

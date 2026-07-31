@@ -330,7 +330,7 @@ export function WorkoutRunner({
           </svg>
           Back
         </button>
-        <h1 className="text-xl font-semibold text-white">Workout Timer</h1>
+        <h1 className="text-xl font-semibold text-white">Countdown</h1>
         <div className="w-16" />
       </header>
 

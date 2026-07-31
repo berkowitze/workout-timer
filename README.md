@@ -1,4 +1,4 @@
-# Workout Timer
+# Countdown
 
 A web app for circuit/interval/timed workouts with AI-powered workout parsing.
 
