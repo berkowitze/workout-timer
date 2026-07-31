@@ -24,7 +24,12 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 def list_workouts() -> Response:
     db = SessionLocal()
     try:
-        workouts = db.query(Workout).order_by(Workout.created_at.desc()).all()
+        workouts = (
+            db.query(Workout)
+            .filter(Workout.is_shared.is_(True))
+            .order_by(Workout.created_at.desc())
+            .all()
+        )
         return jsonify([w.to_dict() for w in workouts])
     finally:
         db.close()
@@ -45,12 +50,50 @@ def create_workout() -> tuple[Response, int]:
         workout = Workout(
             name=data["name"],
             exercises=data["exercises"],
+            is_shared=True,
         )
         db.add(workout)
         db.commit()
         db.refresh(workout)
 
         return jsonify(workout.to_dict()), 201
+    except Exception as e:
+        db.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        db.close()
+
+
+@workouts_bp.route("/workouts/<workout_id>", methods=["PATCH"])
+@require_auth
+def promote_workout(workout_id: str) -> tuple[Response, int] | Response:
+    """Promotes the private Workout row auto-created behind a run (see
+    /attempts) into a named, publicly shareable one - "Save as Shared" on an
+    already-running workout, rather than creating a second row for it."""
+    db = SessionLocal()
+    try:
+        try:
+            workout_uuid = uuid_module.UUID(workout_id)
+        except ValueError:
+            return jsonify({"error": "Invalid workout ID"}), 400
+
+        data: dict[str, Any] = request.get_json() or {}
+        if not data.get("name"):
+            return jsonify({"error": "Name is required"}), 400
+
+        workout = db.query(Workout).filter(Workout.id == workout_uuid).first()
+        if not workout:
+            return jsonify({"error": "Workout not found"}), 404
+
+        workout.name = data["name"]
+        if data.get("exercises"):
+            workout.exercises = data["exercises"]
+        workout.is_shared = True
+
+        db.commit()
+        db.refresh(workout)
+
+        return jsonify(workout.to_dict())
     except Exception as e:
         db.rollback()
         return jsonify({"error": str(e)}), 500

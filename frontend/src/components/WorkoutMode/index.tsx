@@ -43,19 +43,31 @@ export function WorkoutMode({
 
   // Attempt tracking is analytics only: every call is fire-and-forget so a
   // failed or slow tracking request is completely invisible to the person
-  // working out. An ad-hoc run straight from the editor (no savedId) has no
-  // workout_id to attach an attempt to, so it's skipped entirely.
+  // working out. An ad-hoc run straight from the editor (no savedId) still
+  // gets a private Workout row auto-created server-side to attach to - the
+  // response hands back its id so a later "Save as Shared" can promote that
+  // same row instead of creating a duplicate.
   const handleWorkoutStart = useCallback(() => {
-    if (!savedId) return;
     startAttempt(savedId, {
       total_exercises: totalExercises,
       numeric_exercise_count: numericExerciseCount,
       expected_duration_seconds: expectedDurationSeconds,
+      ...(savedId ? {} : { exercises }),
       ...(isAuthenticated ? {} : { anonymous_id: getAnonymousId() }),
     })
-      .then((res) => setAttemptId(res.id))
+      .then((res) => {
+        setAttemptId(res.id);
+        if (!savedId) setSavedId(res.workout_id);
+      })
       .catch(() => {});
-  }, [savedId, totalExercises, numericExerciseCount, expectedDurationSeconds, isAuthenticated]);
+  }, [
+    savedId,
+    exercises,
+    totalExercises,
+    numericExerciseCount,
+    expectedDurationSeconds,
+    isAuthenticated,
+  ]);
 
   const handleWorkoutProgress = useCallback(
     (exercisesCompleted: number) => {
@@ -98,7 +110,7 @@ export function WorkoutMode({
     if (!workoutName.trim()) return;
     setIsSaving(true);
     try {
-      const saved = await saveWorkout(workoutName, exercises);
+      const saved = await saveWorkout(workoutName, exercises, savedId);
       setSavedId(saved.id);
       setIsSaved(true);
     } catch (err) {

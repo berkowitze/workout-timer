@@ -15,6 +15,11 @@ class Workout(Base):  # type: ignore[valid-type, misc]
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(255), nullable=False)
     exercises = Column(JSONB, nullable=False)
+    # False for the private row auto-created behind any workout run (ad-hoc or
+    # not) so WorkoutAttempt always has something to point at; True once the
+    # user explicitly promotes it via "Save as Shared", which is what makes it
+    # eligible for the public "Load Shared Workout" list and a share link.
+    is_shared = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     def to_dict(self) -> dict[str, Any]:
@@ -22,6 +27,7 @@ class Workout(Base):  # type: ignore[valid-type, misc]
             "id": str(self.id),
             "name": self.name,
             "exercises": self.exercises,
+            "is_shared": self.is_shared,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 

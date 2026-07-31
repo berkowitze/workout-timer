@@ -29,15 +29,12 @@ TIMESERIES_METRICS: dict[str, tuple[Any, Any]] = {
 PROGRESS_BUCKETS = 10  # decile buckets: 0-10%, 10-20%, ..., 90-100%
 
 
-def _volume_counts(db: Any, model: Any, timestamp_col: Any) -> dict[str, int]:
+def _volume_counts(db: Any, model: Any, timestamp_col: Any, *extra_filters: Any) -> dict[str, int]:
     now = datetime.utcnow()
-    total = db.query(func.count(model.id)).scalar()
-    last_7d = (
-        db.query(func.count(model.id)).filter(timestamp_col >= now - timedelta(days=7)).scalar()
-    )
-    last_30d = (
-        db.query(func.count(model.id)).filter(timestamp_col >= now - timedelta(days=30)).scalar()
-    )
+    base = db.query(func.count(model.id)).filter(*extra_filters)
+    total = base.scalar()
+    last_7d = base.filter(timestamp_col >= now - timedelta(days=7)).scalar()
+    last_30d = base.filter(timestamp_col >= now - timedelta(days=30)).scalar()
     return {"total": total, "last_7d": last_7d, "last_30d": last_30d}
 
 
@@ -47,7 +44,11 @@ def summary() -> Response:
     db = SessionLocal()
     try:
         volume = {
-            "workouts": _volume_counts(db, Workout, Workout.created_at),
+            # Private rows auto-created behind ad-hoc runs (see /attempts)
+            # don't count as "workouts" here - this is a content metric.
+            "workouts": _volume_counts(
+                db, Workout, Workout.created_at, Workout.is_shared.is_(True)
+            ),
             "users": _volume_counts(db, User, User.created_at),
             "attempts": _volume_counts(db, WorkoutAttempt, WorkoutAttempt.started_at),
         }
@@ -69,6 +70,13 @@ def summary() -> Response:
             .scalar()
         )
         guest_attempts = total_attempts - authenticated_attempts
+        saved_attempts = (
+            db.query(func.count(WorkoutAttempt.id))
+            .join(Workout, Workout.id == WorkoutAttempt.workout_id)
+            .filter(Workout.is_shared.is_(True))
+            .scalar()
+        )
+        ad_hoc_attempts = total_attempts - saved_attempts
         returning_guests = (
             db.query(WorkoutAttempt.anonymous_id)
             .filter(WorkoutAttempt.anonymous_id.isnot(None))
@@ -87,6 +95,8 @@ def summary() -> Response:
                     "authenticated_attempts": authenticated_attempts,
                     "guest_attempts": guest_attempts,
                     "returning_guests": returning_guests,
+                    "saved_attempts": saved_attempts,
+                    "ad_hoc_attempts": ad_hoc_attempts,
                 },
             }
         )
@@ -166,12 +176,14 @@ def timeseries() -> tuple[Response, int] | Response:
     start = datetime.utcnow().date() - timedelta(days=days - 1)
     db = SessionLocal()
     try:
-        rows = (
-            db.query(func.date(timestamp_col).label("day"), func.count(model.id))
-            .filter(timestamp_col >= start)
-            .group_by("day")
-            .all()
+        query = db.query(func.date(timestamp_col).label("day"), func.count(model.id)).filter(
+            timestamp_col >= start
         )
+        if metric == "workouts":
+            # Same content-metric reasoning as volume.workouts: exclude
+            # private rows auto-created behind ad-hoc runs.
+            query = query.filter(Workout.is_shared.is_(True))
+        rows = query.group_by("day").all()
         counts_by_day = {day.isoformat(): count for day, count in rows}
 
         series = []
@@ -203,6 +215,7 @@ def list_workouts() -> tuple[Response, int] | Response:
         query = (
             db.query(Workout, attempt_count)
             .outerjoin(WorkoutAttempt, WorkoutAttempt.workout_id == Workout.id)
+            .filter(Workout.is_shared.is_(True))
             .group_by(Workout.id)
         )
         query = (

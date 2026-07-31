@@ -277,6 +277,15 @@ export function AdminDashboard({ onUnauthorized, onBack, onConfirmedAdmin }: Adm
           />
         </div>
 
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+          <StatTile label="Shared-Workout Attempts" value={audience.saved_attempts} />
+          <StatTile
+            label="Ad-Hoc Attempts"
+            value={audience.ad_hoc_attempts}
+            subvalue="run straight from the editor, never shared"
+          />
+        </div>
+
         {/* Content */}
         <WorkoutsTable
           workouts={workouts}

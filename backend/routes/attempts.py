@@ -9,7 +9,7 @@ from flask_limiter.util import get_remote_address
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from models import WorkoutAttempt
+from models import Workout, WorkoutAttempt
 from routes.auth import get_current_user_id
 
 attempts_bp = Blueprint("attempts", __name__)
@@ -33,13 +33,27 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 @attempts_bp.route("/workouts/<workout_id>/attempts", methods=["POST"])
 @limiter.limit("20/minute")
 def start_attempt(workout_id: str) -> tuple[Response, int]:
+    try:
+        workout_uuid = uuid_module.UUID(workout_id)
+    except ValueError:
+        return jsonify({"error": "Invalid workout ID"}), 400
+    return _create_attempt(workout_uuid)
+
+
+@attempts_bp.route("/attempts", methods=["POST"])
+@limiter.limit("20/minute")
+def start_ad_hoc_attempt() -> tuple[Response, int]:
+    """Same as start_attempt, but for a run started straight from the editor
+    with nothing saved yet. Auto-creates a private (unshared) Workout row to
+    attach the attempt to, so WorkoutAttempt.workout_id can stay a strict,
+    non-nullable FK - "Save as Shared" later promotes this same row rather
+    than creating a second one (see PATCH /workouts/<id>)."""
+    return _create_attempt(None)
+
+
+def _create_attempt(workout_uuid: uuid_module.UUID | None) -> tuple[Response, int]:
     db = SessionLocal()
     try:
-        try:
-            workout_uuid = uuid_module.UUID(workout_id)
-        except ValueError:
-            return jsonify({"error": "Invalid workout ID"}), 400
-
         data: dict[str, Any] = request.get_json() or {}
         total_exercises = data.get("total_exercises")
         numeric_exercise_count = data.get("numeric_exercise_count")
@@ -54,6 +68,15 @@ def start_attempt(workout_id: str) -> tuple[Response, int]:
         if not user_id and not anonymous_id:
             return jsonify({"error": "anonymous_id is required when not authenticated"}), 400
 
+        if workout_uuid is None:
+            exercises = data.get("exercises")
+            if not exercises:
+                return jsonify({"error": "exercises is required to start an ad-hoc attempt"}), 400
+            workout = Workout(name="", exercises=exercises, is_shared=False)
+            db.add(workout)
+            db.flush()
+            workout_uuid = workout.id
+
         attempt = WorkoutAttempt(
             workout_id=workout_uuid,
             user_id=uuid_module.UUID(user_id) if user_id else None,
@@ -66,7 +89,7 @@ def start_attempt(workout_id: str) -> tuple[Response, int]:
         db.commit()
         db.refresh(attempt)
 
-        return jsonify({"id": str(attempt.id)}), 201
+        return jsonify({"id": str(attempt.id), "workout_id": str(attempt.workout_id)}), 201
     except Exception as e:
         db.rollback()
         return jsonify({"error": str(e)}), 500

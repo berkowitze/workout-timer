@@ -179,10 +179,10 @@ function App() {
     setIsAdmin(true);
   };
 
-  const handleStartWorkout = (exercises: Exercise[]) => {
+  const handleStartWorkout = (exercises: Exercise[], savedWorkoutId: string | null = null) => {
     setWorkoutExercises(exercises);
     setStoredExercises(exercises);
-    setSavedWorkoutId(null);
+    setSavedWorkoutId(savedWorkoutId);
     navigate("workout");
   };
 

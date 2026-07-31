@@ -29,6 +29,8 @@ export interface AdminSummary {
     authenticated_attempts: number;
     guest_attempts: number;
     returning_guests: number;
+    saved_attempts: number;
+    ad_hoc_attempts: number;
   };
 }
 

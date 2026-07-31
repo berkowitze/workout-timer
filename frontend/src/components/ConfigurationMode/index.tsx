@@ -13,7 +13,7 @@ import { AccountGateModal } from "../AccountGateModal";
 import { ShareLinkBox } from "../ShareLinkBox";
 
 interface ConfigurationModeProps {
-  onStartWorkout: (exercises: Exercise[]) => void;
+  onStartWorkout: (exercises: Exercise[], savedWorkoutId?: string | null) => void;
   initialExercises?: Exercise[];
   initialWorkout?: { name: string; exercises: Exercise[] };
   isAuthenticated: boolean;
@@ -331,7 +331,9 @@ export function ConfigurationMode({
 
   const handleStart = () => {
     if (exercises.length > 0) {
-      onStartWorkout(removeIdsFromExercises(exercises));
+      // Only carry the saved id along if it still reflects what's about to
+      // run - an edit since the last save means it's stale.
+      onStartWorkout(removeIdsFromExercises(exercises), hasChanges ? null : savedWorkoutId);
     }
   };
 
