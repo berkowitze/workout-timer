@@ -13,6 +13,10 @@ import { BarChart } from "./BarChart";
 import { LineChart } from "./LineChart";
 import { WorkoutsTable } from "./WorkoutsTable";
 import { AttemptsDrilldownModal } from "./AttemptsDrilldownModal";
+import { ExerciseLibrary } from "./ExerciseLibrary";
+import { UnmatchedTermsQueue } from "./UnmatchedTermsQueue";
+
+type AdminTab = "analytics" | "exercises";
 
 interface AdminDashboardProps {
   onUnauthorized: () => void;
@@ -32,6 +36,7 @@ function formatPercent(fraction: number | null): string {
 }
 
 export function AdminDashboard({ onUnauthorized, onBack, onConfirmedAdmin }: AdminDashboardProps) {
+  const [tab, setTab] = useState<AdminTab>("analytics");
   const [summary, setSummary] = useState<AdminSummary | null>(null);
   const [summaryError, setSummaryError] = useState<string | null>(null);
 
@@ -141,6 +146,34 @@ export function AdminDashboard({ onUnauthorized, onBack, onConfirmedAdmin }: Adm
           <p className="text-gray-400">Usage, engagement, and content overview</p>
         </header>
 
+        <div className="flex justify-center mb-6">
+          <div className="flex rounded-lg border border-gray-600 overflow-hidden">
+            <button
+              onClick={() => setTab("analytics")}
+              className={`px-4 py-1.5 text-sm font-medium transition-colors ${
+                tab === "analytics" ? "bg-gray-600 text-white" : "text-gray-400 hover:text-gray-300"
+              }`}
+            >
+              Analytics
+            </button>
+            <button
+              onClick={() => setTab("exercises")}
+              className={`px-4 py-1.5 text-sm font-medium transition-colors ${
+                tab === "exercises" ? "bg-gray-600 text-white" : "text-gray-400 hover:text-gray-300"
+              }`}
+            >
+              Exercises
+            </button>
+          </div>
+        </div>
+
+        {tab === "exercises" ? (
+          <div className="space-y-6">
+            <ExerciseLibrary />
+            <UnmatchedTermsQueue />
+          </div>
+        ) : (
+          <>
         {/* Volume */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
           <StatTile
@@ -251,6 +284,8 @@ export function AdminDashboard({ onUnauthorized, onBack, onConfirmedAdmin }: Adm
           onSortChange={setSort}
           onSelectWorkout={setSelectedWorkout}
         />
+          </>
+        )}
       </div>
 
       {selectedWorkout && (

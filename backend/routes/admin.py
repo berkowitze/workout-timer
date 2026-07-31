@@ -7,8 +7,9 @@ from flask import Blueprint, Response, jsonify, request
 from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker
 
-from models import User, Workout, WorkoutAttempt
+from models import Exercise, UnmatchedExerciseTerm, User, Workout, WorkoutAttempt
 from routes.auth import require_admin
+from services.exercise_matching import embed_text, embedding_input, invalidate_cache
 
 admin_bp = Blueprint("admin", __name__)
 
@@ -255,5 +256,242 @@ def workout_attempts(workout_id: str) -> tuple[Response, int] | Response:
             attempts.append(attempt_dict)
 
         return jsonify(attempts)
+    finally:
+        db.close()
+
+
+def _clean_aliases(raw: Any) -> list[str]:
+    if raw is None:
+        return []
+    if not isinstance(raw, list) or not all(isinstance(a, str) for a in raw):
+        raise ValueError("aliases must be a list of strings")
+    cleaned = []
+    seen = set()
+    for alias in raw:
+        alias = alias.strip()
+        if alias and alias.lower() not in seen:
+            seen.add(alias.lower())
+            cleaned.append(alias)
+    return cleaned
+
+
+@admin_bp.route("/admin/exercises", methods=["GET"])
+@require_admin
+def list_exercises() -> Response:
+    search = request.args.get("search", "").strip().lower()
+    db = SessionLocal()
+    try:
+        exercises = db.query(Exercise).order_by(Exercise.name).all()
+        if search:
+
+            def matches(ex: Exercise) -> bool:
+                haystack = [ex.name, *(ex.aliases or [])]
+                return any(search in h.lower() for h in haystack)
+
+            exercises = [ex for ex in exercises if matches(ex)]
+        return jsonify([ex.to_dict() for ex in exercises])
+    finally:
+        db.close()
+
+
+@admin_bp.route("/admin/exercises", methods=["POST"])
+@require_admin
+def create_exercise() -> tuple[Response, int] | Response:
+    data: dict[str, Any] = request.get_json() or {}
+    name = (data.get("name") or "").strip()
+    if not name:
+        return jsonify({"error": "name is required"}), 400
+
+    try:
+        aliases = _clean_aliases(data.get("aliases"))
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+    db = SessionLocal()
+    try:
+        exercise = Exercise(
+            name=name,
+            aliases=aliases,
+            description=data.get("description") or None,
+            video_url=data.get("video_url") or None,
+            needs_equipment=bool(data.get("needs_equipment", False)),
+            embedding=embed_text(embedding_input(name, aliases)),
+        )
+        db.add(exercise)
+        db.commit()
+        db.refresh(exercise)
+        invalidate_cache()
+        return jsonify(exercise.to_dict()), 201
+    except Exception as e:
+        db.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        db.close()
+
+
+@admin_bp.route("/admin/exercises/<exercise_id>", methods=["PUT"])
+@require_admin
+def update_exercise(exercise_id: str) -> tuple[Response, int] | Response:
+    try:
+        exercise_uuid = uuid_module.UUID(exercise_id)
+    except ValueError:
+        return jsonify({"error": "Invalid exercise ID"}), 400
+
+    data: dict[str, Any] = request.get_json() or {}
+
+    db = SessionLocal()
+    try:
+        exercise = db.query(Exercise).filter(Exercise.id == exercise_uuid).first()
+        if not exercise:
+            return jsonify({"error": "Exercise not found"}), 404
+
+        name = str(data.get("name") if data.get("name") is not None else exercise.name).strip()
+        if not name:
+            return jsonify({"error": "name is required"}), 400
+
+        try:
+            raw_aliases = data.get("aliases") if "aliases" in data else exercise.aliases
+            aliases = _clean_aliases(raw_aliases)
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+
+        needs_re_embed = name != exercise.name or aliases != (exercise.aliases or [])
+
+        exercise.name = name
+        exercise.aliases = aliases
+        if "description" in data:
+            exercise.description = data.get("description") or None
+        if "video_url" in data:
+            exercise.video_url = data.get("video_url") or None
+        if "needs_equipment" in data:
+            exercise.needs_equipment = bool(data.get("needs_equipment"))
+
+        if needs_re_embed:
+            exercise.embedding = embed_text(embedding_input(name, aliases))
+
+        db.commit()
+        db.refresh(exercise)
+        invalidate_cache()
+        return jsonify(exercise.to_dict())
+    except Exception as e:
+        db.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        db.close()
+
+
+@admin_bp.route("/admin/exercises/<exercise_id>", methods=["DELETE"])
+@require_admin
+def delete_exercise(exercise_id: str) -> tuple[Response, int] | Response:
+    try:
+        exercise_uuid = uuid_module.UUID(exercise_id)
+    except ValueError:
+        return jsonify({"error": "Invalid exercise ID"}), 400
+
+    db = SessionLocal()
+    try:
+        exercise = db.query(Exercise).filter(Exercise.id == exercise_uuid).first()
+        if not exercise:
+            return jsonify({"error": "Exercise not found"}), 404
+        db.delete(exercise)
+        db.commit()
+        invalidate_cache()
+        return Response(status=204)
+    except Exception as e:
+        db.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        db.close()
+
+
+@admin_bp.route("/admin/exercises/unmatched", methods=["GET"])
+@require_admin
+def list_unmatched_terms() -> Response:
+    show_resolved = request.args.get("resolved", "false").lower() == "true"
+    db = SessionLocal()
+    try:
+        terms = (
+            db.query(UnmatchedExerciseTerm)
+            .filter(UnmatchedExerciseTerm.resolved == show_resolved)
+            .order_by(UnmatchedExerciseTerm.seen_count.desc())
+            .all()
+        )
+        return jsonify([term.to_dict() for term in terms])
+    finally:
+        db.close()
+
+
+@admin_bp.route("/admin/exercises/unmatched/<term_id>/resolve", methods=["POST"])
+@require_admin
+def resolve_unmatched_term(term_id: str) -> tuple[Response, int] | Response:
+    try:
+        term_uuid = uuid_module.UUID(term_id)
+    except ValueError:
+        return jsonify({"error": "Invalid term ID"}), 400
+
+    data: dict[str, Any] = request.get_json() or {}
+    action = data.get("action")
+    if action not in ("alias", "create"):
+        return jsonify({"error": "action must be 'alias' or 'create'"}), 400
+
+    db = SessionLocal()
+    try:
+        term = (
+            db.query(UnmatchedExerciseTerm).filter(UnmatchedExerciseTerm.id == term_uuid).first()
+        )
+        if not term:
+            return jsonify({"error": "Unmatched term not found"}), 404
+
+        if action == "alias":
+            try:
+                exercise_uuid = uuid_module.UUID(data.get("exercise_id"))
+            except (TypeError, ValueError):
+                return jsonify({"error": "exercise_id is required and must be a valid ID"}), 400
+
+            exercise = db.query(Exercise).filter(Exercise.id == exercise_uuid).first()
+            if not exercise:
+                return jsonify({"error": "Exercise not found"}), 404
+
+            aliases = list(exercise.aliases or [])
+            if term.raw_name not in aliases:
+                aliases.append(str(term.raw_name))
+                exercise.aliases = aliases
+                exercise.embedding = embed_text(embedding_input(str(exercise.name), aliases))
+
+            term.resolved = True
+            db.commit()
+            db.refresh(exercise)
+            invalidate_cache()
+            return jsonify(exercise.to_dict())
+
+        # action == "create"
+        name = (data.get("name") or term.raw_name).strip()
+        if not name:
+            return jsonify({"error": "name is required"}), 400
+
+        try:
+            aliases = _clean_aliases(data.get("aliases"))
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        if term.raw_name != name and term.raw_name not in aliases:
+            aliases.append(str(term.raw_name))
+
+        exercise = Exercise(
+            name=name,
+            aliases=aliases,
+            description=data.get("description") or None,
+            video_url=data.get("video_url") or None,
+            needs_equipment=bool(data.get("needs_equipment", False)),
+            embedding=embed_text(embedding_input(name, aliases)),
+        )
+        db.add(exercise)
+        term.resolved = True
+        db.commit()
+        db.refresh(exercise)
+        invalidate_cache()
+        return jsonify(exercise.to_dict()), 201
+    except Exception as e:
+        db.rollback()
+        return jsonify({"error": str(e)}), 500
     finally:
         db.close()

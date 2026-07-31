@@ -8,6 +8,11 @@ import type {
   TimeseriesMetric,
   WorkoutsSort,
 } from "../types/admin";
+import type {
+  ExerciseLibraryEntry,
+  ExerciseMatchResponse,
+  UnmatchedExerciseTerm,
+} from "../types/exerciseLibrary";
 
 const api = axios.create({
   baseURL: "/api",
@@ -132,5 +137,66 @@ export async function getAdminWorkouts(
 
 export async function getAdminWorkoutAttempts(workoutId: string): Promise<AdminAttempt[]> {
   const response = await api.get<AdminAttempt[]>(`/admin/workouts/${workoutId}/attempts`);
+  return response.data;
+}
+
+export async function matchExercises(names: string[]): Promise<ExerciseMatchResponse> {
+  const response = await api.post<ExerciseMatchResponse>("/exercises/match", { names });
+  return response.data;
+}
+
+export interface ExercisePayload {
+  name: string;
+  aliases: string[];
+  description?: string | null;
+  video_url?: string | null;
+  needs_equipment: boolean;
+}
+
+export async function getAdminExercises(search?: string): Promise<ExerciseLibraryEntry[]> {
+  const response = await api.get<ExerciseLibraryEntry[]>("/admin/exercises", {
+    params: search ? { search } : undefined,
+  });
+  return response.data;
+}
+
+export async function createAdminExercise(
+  payload: ExercisePayload
+): Promise<ExerciseLibraryEntry> {
+  const response = await api.post<ExerciseLibraryEntry>("/admin/exercises", payload);
+  return response.data;
+}
+
+export async function updateAdminExercise(
+  id: string,
+  payload: ExercisePayload
+): Promise<ExerciseLibraryEntry> {
+  const response = await api.put<ExerciseLibraryEntry>(`/admin/exercises/${id}`, payload);
+  return response.data;
+}
+
+export async function deleteAdminExercise(id: string): Promise<void> {
+  await api.delete(`/admin/exercises/${id}`);
+}
+
+export async function getAdminUnmatchedTerms(resolved = false): Promise<UnmatchedExerciseTerm[]> {
+  const response = await api.get<UnmatchedExerciseTerm[]>("/admin/exercises/unmatched", {
+    params: { resolved },
+  });
+  return response.data;
+}
+
+export type ResolveUnmatchedTermPayload =
+  | { action: "alias"; exercise_id: string }
+  | (ExercisePayload & { action: "create" });
+
+export async function resolveUnmatchedTerm(
+  id: string,
+  payload: ResolveUnmatchedTermPayload
+): Promise<ExerciseLibraryEntry> {
+  const response = await api.post<ExerciseLibraryEntry>(
+    `/admin/exercises/unmatched/${id}/resolve`,
+    payload
+  );
   return response.data;
 }

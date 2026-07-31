@@ -45,6 +45,7 @@ from routes.admin import admin_bp  # noqa: E402
 from routes.ai import ai_bp  # noqa: E402
 from routes.attempts import attempts_bp, limiter  # noqa: E402
 from routes.auth import auth_bp, oauth  # noqa: E402
+from routes.exercises import exercises_bp  # noqa: E402
 from routes.workouts import workouts_bp  # noqa: E402
 
 limiter.init_app(app)
@@ -63,6 +64,7 @@ app.register_blueprint(workouts_bp, url_prefix="/api")
 app.register_blueprint(ai_bp, url_prefix="/api")
 app.register_blueprint(attempts_bp, url_prefix="/api")
 app.register_blueprint(admin_bp, url_prefix="/api")
+app.register_blueprint(exercises_bp, url_prefix="/api")
 
 
 @app.route("/api/health")

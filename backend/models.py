@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import declarative_base
 
@@ -72,4 +72,58 @@ class WorkoutAttempt(Base):  # type: ignore[valid-type, misc]
             "started_at": self.started_at.isoformat() if self.started_at else None,
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class Exercise(Base):  # type: ignore[valid-type, misc]
+    """A canonical exercise in the admin-managed library, matched against free-text
+    exercise names typed/parsed into workouts. See plans/02-exercise-library-matching.md."""
+
+    __tablename__ = "exercises"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String(255), nullable=False)
+    aliases = Column(JSONB, nullable=False, default=list)
+    description = Column(Text, nullable=True)
+    video_url = Column(String(500), nullable=True)
+    needs_equipment = Column(Boolean, nullable=False, default=False)
+    # Embedding of "name + aliases" (OpenAI text-embedding-3-small), recomputed
+    # whenever name/aliases change. Brute-force cosine-compared in Python at
+    # match time rather than a pgvector column - see the matching plan doc.
+    embedding = Column(JSONB, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": str(self.id),
+            "name": self.name,
+            "aliases": self.aliases,
+            "description": self.description,
+            "video_url": self.video_url,
+            "needs_equipment": self.needs_equipment,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class UnmatchedExerciseTerm(Base):  # type: ignore[valid-type, misc]
+    """A normalized exercise name that failed to match the library, so admins have
+    a queue of real-world gaps to alias or add rather than a one-time seed."""
+
+    __tablename__ = "unmatched_exercise_terms"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    raw_name = Column(String(255), nullable=False, unique=True, index=True)
+    seen_count = Column(Integer, nullable=False, default=1)
+    last_seen_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    resolved = Column(Boolean, nullable=False, default=False)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": str(self.id),
+            "raw_name": self.raw_name,
+            "seen_count": self.seen_count,
+            "last_seen_at": self.last_seen_at.isoformat() if self.last_seen_at else None,
+            "resolved": self.resolved,
         }
