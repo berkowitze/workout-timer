@@ -25,7 +25,7 @@ export function AuthForm({ onAuthenticated, onBeforeGoogleRedirect }: AuthFormPr
     try {
       const fn = tab === "login" ? login : register;
       const data = await fn(email, password);
-      sessionStorage.setItem("auth_token", data.token);
+      localStorage.setItem("auth_token", data.token);
       onAuthenticated(data.token);
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number; data?: { error?: string } } })

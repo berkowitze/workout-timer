@@ -23,7 +23,7 @@ const api = axios.create({
 
 // Add auth token to requests
 api.interceptors.request.use((config) => {
-  const token = sessionStorage.getItem("auth_token");
+  const token = localStorage.getItem("auth_token");
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -35,7 +35,7 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      sessionStorage.removeItem("auth_token");
+      localStorage.removeItem("auth_token");
       window.location.reload();
     }
     return Promise.reject(error);
@@ -77,8 +77,17 @@ export async function getWorkout(id: string): Promise<Workout> {
   return response.data;
 }
 
-export async function saveWorkout(name: string, exercises: Exercise[]): Promise<Workout> {
-  const response = await api.post<Workout>("/workouts", { name, exercises });
+// With no existingWorkoutId, creates a new shared Workout. With one, promotes
+// the private row already backing an in-progress run (see startAttempt)
+// into a named, shared workout instead of creating a duplicate.
+export async function saveWorkout(
+  name: string,
+  exercises: Exercise[],
+  existingWorkoutId?: string | null
+): Promise<Workout> {
+  const response = existingWorkoutId
+    ? await api.patch<Workout>(`/workouts/${existingWorkoutId}`, { name, exercises })
+    : await api.post<Workout>("/workouts", { name, exercises });
   return response.data;
 }
 
@@ -93,8 +102,8 @@ export async function register(email: string, password: string): Promise<{ token
 }
 
 export function logout(): void {
-  sessionStorage.removeItem("auth_token");
-  sessionStorage.removeItem("is_admin");
+  localStorage.removeItem("auth_token");
+  localStorage.removeItem("is_admin");
 }
 
 interface StartAttemptPayload {
@@ -102,13 +111,17 @@ interface StartAttemptPayload {
   numeric_exercise_count: number;
   expected_duration_seconds?: number | null;
   anonymous_id?: string;
+  // Required when workoutId is null - the ad-hoc endpoint uses it to
+  // auto-create the private Workout row the attempt attaches to.
+  exercises?: Exercise[];
 }
 
 export async function startAttempt(
-  workoutId: string,
+  workoutId: string | null,
   payload: StartAttemptPayload
-): Promise<{ id: string }> {
-  const response = await api.post<{ id: string }>(`/workouts/${workoutId}/attempts`, payload);
+): Promise<{ id: string; workout_id: string }> {
+  const url = workoutId ? `/workouts/${workoutId}/attempts` : "/attempts";
+  const response = await api.post<{ id: string; workout_id: string }>(url, payload);
   return response.data;
 }
 

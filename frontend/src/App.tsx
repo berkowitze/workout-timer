@@ -40,11 +40,11 @@ function readOAuthRedirect(): { isAuthenticated: boolean; pendingAction: Pending
   const token = params.get("token");
   if (token) {
     window.history.replaceState({}, "", window.location.pathname);
-    sessionStorage.setItem("auth_token", token);
+    localStorage.setItem("auth_token", token);
   }
 
   return {
-    isAuthenticated: !!sessionStorage.getItem("auth_token"),
+    isAuthenticated: !!localStorage.getItem("auth_token"),
     pendingAction: consumePendingAction(),
   };
 }
@@ -62,7 +62,7 @@ function App() {
   });
   const [sharedWorkoutId] = useState<string | null>(() => parseSharedWorkoutId());
   const [isAuthenticated, setIsAuthenticated] = useState(oauthState.isAuthenticated);
-  const [isAdmin, setIsAdmin] = useState(() => sessionStorage.getItem("is_admin") === "1");
+  const [isAdmin, setIsAdmin] = useState(() => localStorage.getItem("is_admin") === "1");
   const [workoutExercises, setWorkoutExercises] = useState<Exercise[]>([]);
   const [savedWorkoutId, setSavedWorkoutId] = useState<string | null>(null);
   const [storedExercises, setStoredExercises] = useState<Exercise[]>([]);
@@ -146,7 +146,7 @@ function App() {
   );
 
   const handleAuthenticated = (token: string) => {
-    sessionStorage.setItem("auth_token", token);
+    localStorage.setItem("auth_token", token);
     setIsAuthenticated(true);
     // This also fires from the inline account-gate modal (save/parse while
     // a guest), which happens without ever leaving config/workout mode —
@@ -175,7 +175,7 @@ function App() {
   };
 
   const handleConfirmedAdmin = () => {
-    sessionStorage.setItem("is_admin", "1");
+    localStorage.setItem("is_admin", "1");
     setIsAdmin(true);
   };
 
