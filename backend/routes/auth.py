@@ -69,6 +69,30 @@ def require_auth(f: Callable[..., Any]) -> Callable[..., Any]:
     return decorated
 
 
+def require_admin(f: Callable[..., Any]) -> Callable[..., Any]:
+    """Wraps require_auth with an additional User.is_admin check on the JWT subject.
+
+    This is the actual security boundary for /api/admin/* routes - the
+    frontend route gate is UX-only.
+    """
+
+    @wraps(f)
+    @require_auth
+    def decorated(*args: Any, **kwargs: Any) -> Any:
+        from models import User
+
+        db = _get_db()
+        try:
+            user = db.query(User).filter(User.id == get_current_user_id()).first()
+            if not user or not user.is_admin:
+                return jsonify({"error": "Forbidden"}), 403
+            return f(*args, **kwargs)
+        finally:
+            db.close()
+
+    return decorated
+
+
 @auth_bp.route("/auth/register", methods=["POST"])
 def register() -> tuple[Response, int] | Response:
     data = request.get_json() or {}

@@ -1,5 +1,13 @@
 import axios from "axios";
 import type { Exercise, Workout } from "../types/workout";
+import type {
+  AdminAttempt,
+  AdminSummary,
+  AdminTimeseriesPoint,
+  AdminWorkoutSummary,
+  TimeseriesMetric,
+  WorkoutsSort,
+} from "../types/admin";
 
 const api = axios.create({
   baseURL: "/api",
@@ -66,6 +74,7 @@ export async function register(email: string, password: string): Promise<{ token
 
 export function logout(): void {
   sessionStorage.removeItem("auth_token");
+  sessionStorage.removeItem("is_admin");
 }
 
 interface StartAttemptPayload {
@@ -94,4 +103,34 @@ export async function updateAttempt(
   payload: UpdateAttemptPayload
 ): Promise<void> {
   await api.patch(`/attempts/${attemptId}`, payload);
+}
+
+export async function getAdminSummary(): Promise<AdminSummary> {
+  const response = await api.get<AdminSummary>("/admin/summary");
+  return response.data;
+}
+
+export async function getAdminTimeseries(
+  metric: TimeseriesMetric,
+  days = 30
+): Promise<AdminTimeseriesPoint[]> {
+  const response = await api.get<AdminTimeseriesPoint[]>("/admin/timeseries", {
+    params: { metric, days },
+  });
+  return response.data;
+}
+
+export async function getAdminWorkouts(
+  sort: WorkoutsSort = "popularity",
+  limit = 50
+): Promise<AdminWorkoutSummary[]> {
+  const response = await api.get<AdminWorkoutSummary[]>("/admin/workouts", {
+    params: { sort, limit },
+  });
+  return response.data;
+}
+
+export async function getAdminWorkoutAttempts(workoutId: string): Promise<AdminAttempt[]> {
+  const response = await api.get<AdminAttempt[]>(`/admin/workouts/${workoutId}/attempts`);
+  return response.data;
 }

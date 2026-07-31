@@ -9,8 +9,6 @@ from flask_cors import CORS
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from models import Base
-
 load_dotenv()
 
 # Serve frontend static files in production. static_folder=None disables
@@ -42,11 +40,8 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 
-def init_db() -> None:
-    Base.metadata.create_all(bind=engine)
-
-
 # Import and register routes (must be after app/db setup to avoid circular imports)
+from routes.admin import admin_bp  # noqa: E402
 from routes.ai import ai_bp  # noqa: E402
 from routes.attempts import attempts_bp, limiter  # noqa: E402
 from routes.auth import auth_bp, oauth  # noqa: E402
@@ -67,6 +62,7 @@ app.register_blueprint(auth_bp, url_prefix="/api")
 app.register_blueprint(workouts_bp, url_prefix="/api")
 app.register_blueprint(ai_bp, url_prefix="/api")
 app.register_blueprint(attempts_bp, url_prefix="/api")
+app.register_blueprint(admin_bp, url_prefix="/api")
 
 
 @app.route("/api/health")
@@ -88,5 +84,4 @@ def serve_frontend(path: str) -> Any:
 
 
 if __name__ == "__main__":
-    init_db()
     app.run(debug=True, port=5001)

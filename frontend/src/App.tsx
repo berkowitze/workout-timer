@@ -4,14 +4,19 @@ import { AuthScreen } from "./components/AuthScreen";
 import { ConfigurationMode } from "./components/ConfigurationMode";
 import { WorkoutMode } from "./components/WorkoutMode";
 import { SharedWorkout } from "./components/SharedWorkout";
+import { AdminDashboard } from "./components/Admin";
 import { logout } from "./api/client";
 import { type PendingAction, consumePendingAction } from "./utils/pendingAction";
 
-type AppMode = "config" | "workout" | "auth" | "share";
+type AppMode = "config" | "workout" | "auth" | "share" | "admin";
 
 function parseSharedWorkoutId(): string | null {
   const match = window.location.pathname.match(/^\/w\/([^/]+)\/?$/);
   return match ? match[1] : null;
+}
+
+function isAdminPath(): boolean {
+  return /^\/admin\/?$/.test(window.location.pathname);
 }
 
 // Consumes a ?token= query param left by the Google OAuth redirect (which can
@@ -36,9 +41,18 @@ function readOAuthRedirect(): { isAuthenticated: boolean; pendingAction: Pending
 
 function App() {
   const [oauthState] = useState(readOAuthRedirect);
-  const [mode, setMode] = useState<AppMode>(() => (parseSharedWorkoutId() ? "share" : "config"));
+  const [mode, setMode] = useState<AppMode>(() => {
+    if (parseSharedWorkoutId()) return "share";
+    if (isAdminPath()) {
+      if (oauthState.isAuthenticated) return "admin";
+      // Not authenticated - don't even flash the admin route, bounce to "/".
+      window.history.replaceState({}, "", "/");
+    }
+    return "config";
+  });
   const [sharedWorkoutId] = useState<string | null>(() => parseSharedWorkoutId());
   const [isAuthenticated, setIsAuthenticated] = useState(oauthState.isAuthenticated);
+  const [isAdmin, setIsAdmin] = useState(() => sessionStorage.getItem("is_admin") === "1");
   const [workoutExercises, setWorkoutExercises] = useState<Exercise[]>([]);
   const [savedWorkoutId, setSavedWorkoutId] = useState<string | null>(null);
   const [storedExercises, setStoredExercises] = useState<Exercise[]>([]);
@@ -58,6 +72,27 @@ function App() {
   const handleLogout = () => {
     logout();
     setIsAuthenticated(false);
+    setIsAdmin(false);
+  };
+
+  const handleGoToAdmin = () => {
+    window.history.pushState({}, "", "/admin");
+    setMode("admin");
+  };
+
+  const handleLeaveAdmin = () => {
+    window.history.pushState({}, "", "/");
+    setMode("config");
+  };
+
+  const handleAdminUnauthorized = () => {
+    window.history.replaceState({}, "", "/");
+    setMode("config");
+  };
+
+  const handleConfirmedAdmin = () => {
+    sessionStorage.setItem("is_admin", "1");
+    setIsAdmin(true);
   };
 
   const handleStartWorkout = (exercises: Exercise[]) => {
@@ -87,6 +122,16 @@ function App() {
 
   if (mode === "auth") {
     return <AuthScreen onAuthenticated={handleAuthenticated} />;
+  }
+
+  if (mode === "admin") {
+    return (
+      <AdminDashboard
+        onUnauthorized={handleAdminUnauthorized}
+        onBack={handleLeaveAdmin}
+        onConfirmedAdmin={handleConfirmedAdmin}
+      />
+    );
   }
 
   if (mode === "share" && sharedWorkoutId) {
@@ -122,6 +167,8 @@ function App() {
       onAuthenticated={handleAuthenticated}
       onRequestLogin={() => setMode("auth")}
       onLogout={handleLogout}
+      isAdmin={isAdmin}
+      onGoToAdmin={handleGoToAdmin}
     />
   );
 }

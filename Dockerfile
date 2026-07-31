@@ -23,6 +23,6 @@ COPY --from=frontend-build /app/frontend/dist ./frontend/dist
 # Set working directory to backend
 WORKDIR /app/backend
 
-# Initialize DB and start server
-CMD python -c "from app import init_db; init_db()" && gunicorn app:app --workers 2 --threads 4 --bind 0.0.0.0:$PORT
+# Run migrations and start server
+CMD alembic upgrade head && gunicorn app:app --workers 2 --threads 4 --bind 0.0.0.0:$PORT
 

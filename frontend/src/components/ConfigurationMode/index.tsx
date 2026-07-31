@@ -22,6 +22,8 @@ interface ConfigurationModeProps {
   onAuthenticated: (token: string) => void;
   onRequestLogin: () => void;
   onLogout: () => void;
+  isAdmin?: boolean;
+  onGoToAdmin?: () => void;
 }
 
 type GateReason = { kind: "parse"; text: string } | { kind: "save" } | { kind: "generateName" };
@@ -62,6 +64,8 @@ export function ConfigurationMode({
   onAuthenticated,
   onRequestLogin,
   onLogout,
+  isAdmin,
+  onGoToAdmin,
 }: ConfigurationModeProps) {
   const [exercises, setExercises] = useState<ExerciseWithId[]>(() => {
     const source = initialWorkout?.exercises ?? initialExercises;
@@ -307,7 +311,15 @@ export function ConfigurationMode({
   return (
     <div className="min-h-screen bg-slate">
       <div className="max-w-[1400px] mx-auto px-4 py-8">
-        <div className="flex justify-end">
+        <div className="flex justify-end items-center gap-4">
+          {isAuthenticated && isAdmin && (
+            <button
+              onClick={onGoToAdmin}
+              className="text-sm text-gray-400 hover:text-gray-200 transition-colors"
+            >
+              Admin
+            </button>
+          )}
           {isAuthenticated ? (
             <button
               onClick={onLogout}
