@@ -42,9 +42,24 @@ api.interceptors.response.use(
   }
 );
 
-export async function parseWorkout(text: string): Promise<Exercise[]> {
-  const response = await api.post<{ exercises: Exercise[] }>("/parse-workout", { text });
-  return response.data.exercises;
+export interface ParseWorkoutResult {
+  exercises: Exercise[];
+  sessionId: string;
+}
+
+export async function parseWorkout(
+  text: string,
+  options?: { currentExercises?: Exercise[]; sessionId?: string }
+): Promise<ParseWorkoutResult> {
+  const response = await api.post<{ exercises: Exercise[]; session_id: string }>(
+    "/parse-workout",
+    {
+      text,
+      current_exercises: options?.currentExercises,
+      session_id: options?.sessionId,
+    }
+  );
+  return { exercises: response.data.exercises, sessionId: response.data.session_id };
 }
 
 export async function generateWorkoutName(exercises: Exercise[]): Promise<string> {

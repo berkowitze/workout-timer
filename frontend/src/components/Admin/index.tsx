@@ -196,9 +196,9 @@ export function AdminDashboard({ onUnauthorized, onBack, onConfirmedAdmin }: Adm
 
         {/* Growth */}
         <div className="bg-slate-light rounded-xl p-5 border border-gray-700 mb-6">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
             <h2 className="text-lg font-semibold text-white">Growth (last 30 days)</h2>
-            <div className="flex rounded-lg border border-gray-600 overflow-hidden">
+            <div className="flex rounded-lg border border-gray-600 overflow-hidden w-fit">
               {TIMESERIES_METRICS.map(({ key, label }) => (
                 <button
                   key={key}

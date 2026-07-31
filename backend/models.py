@@ -75,6 +75,34 @@ class WorkoutAttempt(Base):  # type: ignore[valid-type, misc]
         }
 
 
+class ParseEvent(Base):  # type: ignore[valid-type, misc]
+    """Log of every prompt -> workout parse/modification call, for later analytics
+    (e.g. spotting recurring misparses or feeding prompt-tuning). session_id groups
+    a fresh parse with any follow-up modification calls made against its result;
+    turn_index orders turns within that session."""
+
+    __tablename__ = "parse_events"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    session_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    turn_index = Column(Integer, nullable=False, default=0)
+    is_modification = Column(Boolean, nullable=False, default=False)
+    # Nullable for schema symmetry with WorkoutAttempt, though /parse-workout
+    # currently requires auth so user_id is always set in practice.
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True)
+    anonymous_id = Column(String(255), nullable=True, index=True)
+    prompt_text = Column(Text, nullable=False)
+    # Exercises sent as context for a modification call; null for a fresh parse.
+    input_exercises = Column(JSONB, nullable=True)
+    # Null if the call failed after exhausting retries.
+    output_exercises = Column(JSONB, nullable=True)
+    success = Column(Boolean, nullable=False)
+    error_message = Column(Text, nullable=True)
+    model = Column(String(100), nullable=False)
+    retry_count = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
 class Exercise(Base):  # type: ignore[valid-type, misc]
     """A canonical exercise in the admin-managed library, matched against free-text
     exercise names typed/parsed into workouts. See plans/02-exercise-library-matching.md."""

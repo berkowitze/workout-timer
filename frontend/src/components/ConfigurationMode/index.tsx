@@ -26,7 +26,10 @@ interface ConfigurationModeProps {
   onGoToAdmin?: () => void;
 }
 
-type GateReason = { kind: "parse"; text: string } | { kind: "save" } | { kind: "generateName" };
+type GateReason =
+  | { kind: "parse"; text: string; currentExercises?: Exercise[] }
+  | { kind: "save" }
+  | { kind: "generateName" };
 
 const GATE_MESSAGES: Record<GateReason["kind"], string> = {
   parse: "Turning text into a workout uses AI, so it takes a free account. Sign up or log in below and we'll pick up right where you left off.",
@@ -84,6 +87,8 @@ export function ConfigurationMode({
   const [hasChanges, setHasChanges] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isViewMode, setIsViewMode] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [clearSignal, setClearSignal] = useState(0);
   const exercisesPanelRef = useRef<HTMLDivElement>(null);
 
   const totalTime = useMemo(() => calculateTotalTime(exercises), [exercises]);
@@ -100,40 +105,52 @@ export function ConfigurationMode({
     });
   }, []);
 
-  const runParse = useCallback(async (text: string) => {
-    setIsParsing(true);
-    setError(null);
-    try {
-      const parsed = await parseWorkout(text);
-      const withIds = addIdsToExercises(parsed);
-      setExercises(withIds);
-      setSavedWorkoutId(null);
-      setHasChanges(true);
-      // Auto-expand all loops in parsed workout
-      const loopIds = new Set<string>();
-      const findLoops = (exs: ExerciseWithId[]) => {
-        for (const ex of exs) {
-          if (ex.type === "loop") {
-            loopIds.add(ex.id);
-            findLoops(ex.exercises);
+  const runParse = useCallback(
+    async (text: string, currentExercises?: Exercise[]): Promise<void> => {
+      setIsParsing(true);
+      setError(null);
+      try {
+        const { exercises: parsed, sessionId: newSessionId } = await parseWorkout(text, {
+          currentExercises,
+          sessionId: currentExercises ? (sessionId ?? undefined) : undefined,
+        });
+        const withIds = addIdsToExercises(parsed);
+        setExercises(withIds);
+        setSessionId(newSessionId);
+        setSavedWorkoutId(null);
+        setHasChanges(true);
+        setClearSignal((c) => c + 1);
+        // Auto-expand all loops in parsed workout
+        const loopIds = new Set<string>();
+        const findLoops = (exs: ExerciseWithId[]) => {
+          for (const ex of exs) {
+            if (ex.type === "loop") {
+              loopIds.add(ex.id);
+              findLoops(ex.exercises);
+            }
           }
-        }
-      };
-      findLoops(withIds);
-      setExpandedIds(loopIds);
-      setIsViewMode(true); // Switch to view mode after parsing
+        };
+        findLoops(withIds);
+        setExpandedIds(loopIds);
+        setIsViewMode(true); // Switch to view mode after parsing
 
-      // Scroll to exercises panel (smooth scroll, will be no-op if already in view)
-      setTimeout(() => {
-        exercisesPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 100);
-    } catch (err) {
-      setError("Failed to parse workout. Please try again.");
-      console.error(err);
-    } finally {
-      setIsParsing(false);
-    }
-  }, []);
+        // Scroll to exercises panel (smooth scroll, will be no-op if already in view)
+        setTimeout(() => {
+          exercisesPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 100);
+      } catch (err) {
+        setError(
+          currentExercises
+            ? "Failed to update workout. Please try again."
+            : "Failed to parse workout. Please try again."
+        );
+        console.error(err);
+      } finally {
+        setIsParsing(false);
+      }
+    },
+    [sessionId]
+  );
 
   const runGenerateName = useCallback(async (exs: ExerciseWithId[]) => {
     if (exs.length === 0) return;
@@ -167,14 +184,26 @@ export function ConfigurationMode({
     }
   }, []);
 
-  const handleParse = async (text: string) => {
+  const handleParse = async (text: string): Promise<void> => {
+    const currentExercises = exercises.length > 0 ? removeIdsFromExercises(exercises) : undefined;
     if (!isAuthenticated) {
       // Don't navigate away or lose what they typed — just gate on account
       // creation. WorkoutParser keeps the text in its own input state.
-      setGate({ kind: "parse", text });
+      setGate({ kind: "parse", text, currentExercises });
       return;
     }
-    await runParse(text);
+    await runParse(text, currentExercises);
+  };
+
+  const handleStartOver = () => {
+    setExercises([]);
+    setWorkoutName("");
+    setSavedWorkoutId(null);
+    setHasChanges(false);
+    setSessionId(null);
+    setError(null);
+    setIsViewMode(false);
+    setExpandedIds(new Set());
   };
 
   const handleGateAuthenticated = (token: string) => {
@@ -183,7 +212,7 @@ export function ConfigurationMode({
     setGate(null);
     if (!reason) return;
     if (reason.kind === "parse") {
-      runParse(reason.text);
+      runParse(reason.text, reason.currentExercises);
     } else if (reason.kind === "save") {
       runSave(workoutName, exercises);
     } else if (reason.kind === "generateName") {
@@ -195,7 +224,7 @@ export function ConfigurationMode({
     if (!gate) return;
     const action: PendingAction =
       gate.kind === "parse"
-        ? { type: "parse", text: gate.text }
+        ? { type: "parse", text: gate.text, currentExercises: gate.currentExercises }
         : {
             type: gate.kind,
             name: workoutName,
@@ -209,7 +238,7 @@ export function ConfigurationMode({
   useEffect(() => {
     if (!autoResumeAction) return;
     if (autoResumeAction.type === "parse") {
-      runParse(autoResumeAction.text);
+      runParse(autoResumeAction.text, autoResumeAction.currentExercises);
     } else {
       const withIds = addIdsToExercises(autoResumeAction.exercises);
       setExercises(withIds);
@@ -345,7 +374,13 @@ export function ConfigurationMode({
           <div className="space-y-4">
             <div className="bg-slate-light rounded-xl p-5 border border-gray-700">
               <h2 className="text-lg font-semibold text-white mb-3">Create Workout</h2>
-              <WorkoutParser onParse={handleParse} isLoading={isParsing} />
+              <WorkoutParser
+                onParse={handleParse}
+                isLoading={isParsing}
+                mode={exercises.length > 0 ? "modify" : "parse"}
+                onStartOver={handleStartOver}
+                clearSignal={clearSignal}
+              />
             </div>
 
             <div className="bg-slate-light rounded-xl p-5 border border-gray-700">

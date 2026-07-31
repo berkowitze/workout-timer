@@ -4,7 +4,7 @@ import type { Exercise } from "../types/workout";
 // before a full-page Google OAuth redirect (which wipes all React state) so
 // it can be resumed once they're back and authenticated.
 export type PendingAction =
-  | { type: "parse"; text: string }
+  | { type: "parse"; text: string; currentExercises?: Exercise[] }
   | { type: "save"; name: string; exercises: Exercise[] }
   | { type: "generateName"; name: string; exercises: Exercise[] };
 
