@@ -337,8 +337,7 @@ export function ConfigurationMode({
           )}
         </div>
         <header className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">Countdown</h1>
-          <p className="text-gray-400">Create, customize, and crush your workouts</p>
+          <h1 className="text-4xl font-bold text-white">Workout Timer</h1>
         </header>
 
         <div className="grid gap-6 lg:grid-cols-[1fr_1.5fr_1fr]">
