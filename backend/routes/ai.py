@@ -21,8 +21,19 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 MAX_RETRIES = 2
 PARSE_MODEL = "gpt-5.4-nano"
+# Used for retries after the cheap model has demonstrably failed once - not worth
+# paying for on every call, but worth it once nano has already gotten it wrong.
+ESCALATED_MODEL = "gpt-4o-mini"
+# How many prior turns of a modification session to replay as conversation history,
+# so a terse follow-up like "try harder" isn't answered with zero context on what
+# it's responding to. Capped to bound token usage on long editing sessions.
+MAX_HISTORY_TURNS = 10
 
 TIME_UNITS = {"second", "seconds", "sec", "secs", "minute", "minutes", "min", "mins", "hour", "hours"}
+# A schema-valid single exercise whose name is just the request's own generic
+# vocabulary (see _check_quality) is a strong signal the model punted instead of
+# decomposing the request into real exercises.
+GENERIC_WORKOUT_WORDS = {"workout", "day", "session", "routine", "circuit", "training"}
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://localhost:5432/workout_timer")
 if DATABASE_URL.startswith("postgres://"):
@@ -42,6 +53,7 @@ def _log_parse_event(
     output_exercises: list[dict[str, Any]] | None,
     success: bool,
     error_message: str | None,
+    model: str,
     retry_count: int,
 ) -> None:
     """Best-effort audit log — never let a logging failure break the actual parse."""
@@ -59,7 +71,7 @@ def _log_parse_event(
                 output_exercises=output_exercises,
                 success=success,
                 error_message=error_message,
-                model=PARSE_MODEL,
+                model=model,
                 retry_count=retry_count,
             )
         )
@@ -83,6 +95,26 @@ def _check_semantics(exercises: list[ParsedExercise]) -> None:
             _check_semantics(ex.exercises)
 
 
+def _check_quality(exercises: list[ParsedExercise]) -> None:
+    """Catch a low-effort failure mode that's schema-valid so _check_semantics can't
+    see it: wrapping an entire generic request as a single exercise literally named
+    after it (e.g. "10 minute ab workout" -> one 600s "ab workout" exercise) instead
+    of decomposing it into real exercises."""
+    if len(exercises) != 1:
+        return
+    ex = exercises[0]
+    if ex.type != "timed" or not ex.duration or ex.duration < 180 or not ex.name:
+        return
+    name_words = set(ex.name.lower().split())
+    if name_words & GENERIC_WORKOUT_WORDS:
+        raise ValueError(
+            f"The response is a single exercise named '{ex.name}' with duration "
+            f"{ex.duration}s — that looks like the request was copied as a label "
+            "instead of being decomposed into real exercises. Break this into "
+            "multiple concrete exercises that together fill the requested time."
+        )
+
+
 @ai_bp.route("/parse-workout", methods=["POST"])
 @require_auth
 def parse_workout() -> tuple[Response, int] | Response:
@@ -103,21 +135,38 @@ def parse_workout() -> tuple[Response, int] | Response:
 
         db = SessionLocal()
         try:
-            turn_index = db.query(ParseEvent).filter(ParseEvent.session_id == session_id).count()
+            prior_turns = (
+                db.query(ParseEvent)
+                .filter(ParseEvent.session_id == session_id)
+                .order_by(ParseEvent.turn_index)
+                .all()
+            )
         finally:
             db.close()
+        turn_index = len(prior_turns)
 
         if is_modification:
-            messages: list[dict[str, str]] = [
-                {"role": "system", "content": MODIFY_SYSTEM_PROMPT},
+            messages: list[dict[str, str]] = [{"role": "system", "content": MODIFY_SYSTEM_PROMPT}]
+            # Replay prior turns as real conversation history (capped) so a terse
+            # follow-up like "try harder" isn't answered with no memory of what it's
+            # responding to - each turn's own prompt_text is enough context (it was
+            # itself either the original description or a prior instruction), and
+            # its output_exercises is what the model actually said back.
+            successful_turns = [t for t in prior_turns if t.success]
+            for turn in successful_turns[-MAX_HISTORY_TURNS:]:
+                messages.append({"role": "user", "content": turn.prompt_text})
+                messages.append(
+                    {"role": "assistant", "content": json.dumps({"exercises": turn.output_exercises})}
+                )
+            messages.append(
                 {
                     "role": "user",
                     "content": (
                         f"Current workout:\n{json.dumps({'exercises': current_exercises})}\n\n"
                         f"Instruction: {raw_text}"
                     ),
-                },
-            ]
+                }
+            )
         else:
             messages = [
                 {"role": "system", "content": SYSTEM_PROMPT},
@@ -126,8 +175,9 @@ def parse_workout() -> tuple[Response, int] | Response:
 
         last_error = ""
         for attempt in range(MAX_RETRIES + 1):
+            model = PARSE_MODEL if attempt == 0 else ESCALATED_MODEL
             completion = client.chat.completions.create(
-                model=PARSE_MODEL,
+                model=model,
                 messages=messages,  # type: ignore[arg-type]
                 temperature=0.3,
             )
@@ -137,6 +187,7 @@ def parse_workout() -> tuple[Response, int] | Response:
                 parsed_json = json.loads(raw_response)
                 validated = WorkoutParsed.model_validate(parsed_json)
                 _check_semantics(validated.exercises)
+                _check_quality(validated.exercises)
                 exercises = [clean_exercise(ex) for ex in validated.exercises]
                 _log_parse_event(
                     session_id=session_id,
@@ -147,6 +198,7 @@ def parse_workout() -> tuple[Response, int] | Response:
                     output_exercises=exercises,
                     success=True,
                     error_message=None,
+                    model=model,
                     retry_count=attempt,
                 )
                 return jsonify({"exercises": exercises, "session_id": str(session_id)})
@@ -157,7 +209,7 @@ def parse_workout() -> tuple[Response, int] | Response:
                     messages.append(
                         {
                             "role": "user",
-                            "content": f"The JSON you returned had an error: {last_error}\nFix it and return valid JSON only, no explanation.",
+                            "content": f"That response needs to be corrected: {last_error}\nReturn corrected JSON only, no explanation.",
                         }
                     )
 
@@ -170,6 +222,7 @@ def parse_workout() -> tuple[Response, int] | Response:
             output_exercises=None,
             success=False,
             error_message=last_error,
+            model=ESCALATED_MODEL,
             retry_count=MAX_RETRIES,
         )
         return jsonify({"error": f"Failed to parse workout: {last_error}"}), 500

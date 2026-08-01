@@ -47,7 +47,16 @@ CONTEXT: Include parenthetical context in names when relevant.
 "1 minute max effort (rowing)" → name: "row", instruction: "max effort"
 
 INSTRUCTIONS: Extract intensity/form cues into "instruction".
-"on/off" patterns → alternating work (timed) and rest."""
+"on/off" patterns → alternating work (timed) and rest.
+
+GENERIC REQUESTS: If the text names a duration/goal/muscle-group/workout-type without
+listing specific exercises (e.g. "10 minute ab workout", "leg day", "20 min HIIT"), do
+NOT emit a single exercise named after the phrase itself. Invent a real sequence of
+3-6 distinct, concrete exercises that target that goal, sized so their durations/reps
+sum to roughly the requested total time. Only fall back to a single exercise if the
+text truly gives you nothing else to work with.
+- "10 minute ab workout" → several ab exercises (e.g. plank, crunches, leg raises,
+  bicycle crunches) summing to ~600s, NOT {"type":"timed","name":"ab workout","duration":600}."""
 
 NAME_SYSTEM_PROMPT = """Generate a short, catchy workout name (2-4 words) based on the exercises.
 Respond with the name only — no quotes, no explanation.
@@ -85,4 +94,19 @@ type "numeric" with unit "seconds"/"minutes" — "unit" must be a countable quan
 The instruction may reference an exercise by name, by position ("the second one"), or
 describe a correction to something that was misparsed (e.g. "that should be a minute,
 not a second" means fix a duration that's off by a unit). Return the FULL updated
-exercise list, including everything that didn't change."""
+exercise list, including everything that didn't change.
+
+RESTRUCTURING: Some instructions change the workout's shape, not just a value -
+"split this into separate exercises", "break this down", "make these two exercises
+instead of one". For these, "leave everything else exactly as it was" means preserve
+the total time/volume and intent, NOT the exercise count or boundaries. Replace the
+single entry with multiple concrete exercises that add up to the same overall
+duration/reps. Do not just annotate or relabel the existing entry - actually add
+exercises to the list.
+Example: current [{"type":"timed","name":"ab workout","duration":600}], instruction
+"split it into different exercises" →
+[{"type":"timed","name":"plank","duration":60},
+ {"type":"rest","duration":15},
+ {"type":"numeric","name":"crunches","count":20},
+ {"type":"rest","duration":15},
+ {"type":"numeric","name":"leg raises","count":15}, ...] summing to ~600s total."""
